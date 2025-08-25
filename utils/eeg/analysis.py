@@ -347,6 +347,7 @@ def get_psd_analysis(epoch_data):
     mean_spectrum = raw_spectrum.average()
     psds, freqs = mean_spectrum.get_data(return_freqs=True)
     psds = 10 * np.log10(psds)
+    psds += np.abs(np.min(psds))
     psds_mean, psds_std = psds.mean(axis=0), psds.std(axis=0)
 
     p1 = get_related_power(psds_mean, freqs, freq_range=[0, 4])
@@ -391,6 +392,7 @@ def get_region_psd(epoch_data):
     r_mean_spectrum = r_raw_spectrum.average()
     r_psds, freqs = r_mean_spectrum.get_data(return_freqs=True)
     r_psds = 10 * np.log10(r_psds)
+    r_psds += np.abs(np.min(r_psds))
     r_psds_mean = r_psds.mean(axis=0)
 
     r_p1 = get_related_power(r_psds_mean, freqs, freq_range=[0, 4])
@@ -406,6 +408,7 @@ def get_region_psd(epoch_data):
     l_mean_spectrum = l_raw_spectrum.average()
     l_psds, freqs = l_mean_spectrum.get_data(return_freqs=True)
     l_psds = 10 * np.log10(l_psds)
+    l_psds += np.abs(np.min(l_psds))
     l_psds_mean = l_psds.mean(axis=0)
 
     l_p1 = get_related_power(l_psds_mean, freqs, freq_range=[0, 4])
@@ -513,7 +516,7 @@ def get_sleep_staging(epoch_data, ch_list):
     outs = []
     for i in range(5):
         # 1. Prepared Pretrained Model
-        ckpt_path = r'C:\Users\brainlab\Desktop\OneClick_Client\neuronet\ckpt\\' + str(i) + r'\model\best_model.pth'
+        ckpt_path = r'C:\Users\brainlab\Desktop\OneClick_Client_New\neuronet\ckpt\\' + str(i) + r'\model\best_model.pth'
         ckpt = torch.load(ckpt_path, map_location='cpu')
         model_parameter = ckpt['model_parameter']
         pretrained_model = NeuroNet(**model_parameter)
@@ -535,7 +538,7 @@ def get_sleep_staging(epoch_data, ch_list):
         # 3. Generator Classifier
         model = Classifier(backbone=backbone,
                            backbone_final_length=pretrained_model.autoencoder.embed_dim)
-        ckpt_path = r'C:\Users\brainlab\Desktop\OneClick_Client\neuronet\ckpt\\' + str(i) + r'\linear_prob\best_model.pth'
+        ckpt_path = r'C:\Users\brainlab\Desktop\OneClick_Client_New\neuronet\ckpt\\' + str(i) + r'\linear_prob\best_model.pth'
         ckpt = torch.load(ckpt_path, map_location='cpu')
         model.load_state_dict(ckpt['model_state'])
 
