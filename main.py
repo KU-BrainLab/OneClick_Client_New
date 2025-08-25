@@ -82,8 +82,8 @@ if __name__ == '__main__':
 
 
     file = args.file_name
-    data_path = r'C:\Users\brainlab\Desktop\OneClick_Client\data'
-    save_path = r'C:\Users\brainlab\Desktop\OneClick_Client\data\clean'
+    data_path = r'C:\Users\brainlab\Desktop\OneClick_Client_New\data'
+    save_path = r'C:\Users\brainlab\Desktop\OneClick_Client_New\data\clean'
     # data_path = r"C:\Users\tjd64\OneDrive\바탕 화면\Oneclick\data"
     # save_path = r"C:\Users\tjd64\OneDrive\바탕 화면\Oneclick\data\clean"
 
