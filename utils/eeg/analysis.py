@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 from neuronet.model import NeuroNet, NeuroNetEncoderWrapper, Classifier
 from scipy.integrate import simpson
 import cv2
+from pathlib import Path
+
 
 mpl.use('TkAgg')
 mpl.rcParams['figure.constrained_layout.use'] = True
@@ -516,7 +518,10 @@ def get_sleep_staging(epoch_data, ch_list):
     outs = []
     for i in range(5):
         # 1. Prepared Pretrained Model
-        ckpt_path = '../../neuronet/ckpt/' + str(i) + '/model/best_model.pth'
+        current_file = Path(__file__)
+        project_root = current_file.parent.parent.parent
+        ckpt_path = project_root / 'neuronet' / 'ckpt' / str(i) / 'model' / 'best_model.pth'
+
         ckpt = torch.load(ckpt_path, map_location='cpu')
         model_parameter = ckpt['model_parameter']
         pretrained_model = NeuroNet(**model_parameter)
@@ -538,7 +543,10 @@ def get_sleep_staging(epoch_data, ch_list):
         # 3. Generator Classifier
         model = Classifier(backbone=backbone,
                            backbone_final_length=pretrained_model.autoencoder.embed_dim)
-        ckpt_path = '../../neuronet/ckpt/' + str(i) + '/linear_prob/best_model.pth'
+        current_file = Path(__file__)
+        project_root = current_file.parent.parent.parent
+        ckpt_path = project_root / 'neuronet' / 'ckpt' / str(i) / 'linear_prob' / 'best_model.pth'
+
         ckpt = torch.load(ckpt_path, map_location='cpu')
         model.load_state_dict(ckpt['model_state'])
 

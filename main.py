@@ -11,10 +11,10 @@ import pickle
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--name', default='테스트', type=str)
-    parser.add_argument('--age', default=45, type=int)
+    parser.add_argument('--name', default='카리나', type=str)
+    parser.add_argument('--age', default=25, type=int)
     parser.add_argument('--measurement_date', default='2025-08-21 13:29', type=str)
-    parser.add_argument('--birth', default='1979-01-17', type=str)
+    parser.add_argument('--birth', default='2000-01-17', type=str)
     parser.add_argument('--sex', default='male', choices=['male', 'female'], type=str)
     parser.add_argument('--file_name', default='2025-08-05-1329.csv', type=str)
     return parser.parse_args()
@@ -82,8 +82,11 @@ if __name__ == '__main__':
 
 
     file = args.file_name
-    data_path = '../data'
-    save_path = '../data/clean'
+
+    #get dir path
+    data_path = os.path.abspath('data')
+    save_path = os.path.join('data', 'clean')
+    save_path = os.path.abspath(save_path)
     # data_path = r"C:\Users\tjd64\OneDrive\바탕 화면\Oneclick\data"
     # save_path = r"C:\Users\tjd64\OneDrive\바탕 화면\Oneclick\data\clean"
 
