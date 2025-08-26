@@ -516,7 +516,7 @@ def get_sleep_staging(epoch_data, ch_list):
     outs = []
     for i in range(5):
         # 1. Prepared Pretrained Model
-        ckpt_path = r'C:\Users\brainlab\Desktop\OneClick_Client_New\neuronet\ckpt\\' + str(i) + r'\model\best_model.pth'
+        ckpt_path = '../../neuronet/ckpt/' + str(i) + '/model/best_model.pth'
         ckpt = torch.load(ckpt_path, map_location='cpu')
         model_parameter = ckpt['model_parameter']
         pretrained_model = NeuroNet(**model_parameter)
@@ -538,7 +538,7 @@ def get_sleep_staging(epoch_data, ch_list):
         # 3. Generator Classifier
         model = Classifier(backbone=backbone,
                            backbone_final_length=pretrained_model.autoencoder.embed_dim)
-        ckpt_path = r'C:\Users\brainlab\Desktop\OneClick_Client_New\neuronet\ckpt\\' + str(i) + r'\linear_prob\best_model.pth'
+        ckpt_path = '../../neuronet/ckpt/' + str(i) + '/linear_prob/best_model.pth'
         ckpt = torch.load(ckpt_path, map_location='cpu')
         model.load_state_dict(ckpt['model_state'])
 
