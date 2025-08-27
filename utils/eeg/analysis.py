@@ -701,7 +701,7 @@ def get_frontal_alpha_asymmetry(epoch_data, uuid):
         # 색상바
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
-        cbar = plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
+        cbar = plt.colorbar(sm, ax=ax, orientation='horizontal', fraction=0.046, pad=0.04)
         cbar.set_label('FAA (Right - Left)', fontsize=12)
         ax.axis('off')
 
