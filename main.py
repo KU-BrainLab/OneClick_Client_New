@@ -11,9 +11,9 @@ import pickle
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--name', default='장원영', type=str)
+    parser.add_argument('--name', default='알파파', type=str)
     parser.add_argument('--age', default=20, type=int)
-    parser.add_argument('--measurement_date', default='2025-08-26 16:17', type=str)
+    parser.add_argument('--measurement_date', default='2025-08-27 14:35', type=str)
     parser.add_argument('--birth', default='2004-01-17', type=str)
     parser.add_argument('--sex', default='female', choices=['male', 'female'], type=str)
     parser.add_argument('--file_name', default='2025-08-05-1329.csv', type=str)
@@ -103,8 +103,6 @@ if __name__ == '__main__':
 
     ## 신호 이상시
     eeg_results = eeg_analysis(os.path.join(data_path, file))
-    print(eeg_results['faa'])
-
 
     eeg_payload = json.dumps({
         'psd': eeg_results['psd_result'],
@@ -121,7 +119,7 @@ if __name__ == '__main__':
         'diff4': eeg_diff_content_bulk(eeg_results, 'diff4'),
         'faa' : eeg_results['faa']
     }, cls=NpEncoder)   
-
+    
     headers = {'Content-type': 'application/json', 'Accept': '*/*'}
     ip = '180.83.245.145:8000'
     s_index = ['male', 'female']
@@ -131,8 +129,6 @@ if __name__ == '__main__':
 
     # with open("dummy_ecg.pkl", "rb") as f:
     #     hrv_payload = pickle.load(f)
-
-    print(eeg_results['faa'])
 
     oo = requests.post('http://{}/api/v1/exp/'.format(ip),
                        data=json.dumps({'name': args.name,
