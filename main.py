@@ -21,6 +21,7 @@ def get_args():
     parser.add_argument('--FILE_NAME', default='2025-08-05-1329.csv', type=str)
 
     ### DEBUG_MODE ###
+    ### False일때만 서버로 전송됨 ###
     parser.add_argument('--DEBUG_MODE', default=False, type=bool)
     return parser.parse_args()
 
@@ -85,7 +86,6 @@ def eeg_diff_content_bulk(payload, name):
 if __name__ == '__main__':
     args = get_args()
 
-
     file = args.FILE_NAME
 
     #get dir path
@@ -140,27 +140,6 @@ if __name__ == '__main__':
                                             'eeg': eeg_payload}),
                         headers=headers)
         print(oo)
-
-        print(f"HTTP 상태 코드: {oo.status_code}")
-        print(f"에러 원인: {oo.reason}")
-        #print(f"서버 응답: {oo.text}")
-
-
-    filename = "test.json"
-
-    try:
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(json.dumps({'name': args.NAME,
-                                'measurement_date': args.MEASUREMENT_DATE,
-                                'age': args.AGE,
-                                'birth': args.BIRTH,
-                                'sex': s_index.index(args.SEX),
-                                'hrv': hrv_payload,
-                                'eeg': eeg_payload}))
-            
-        print(f"✅ 데이터 페이로드를 '{filename}' 파일로 성공적으로 저장했습니다.")
-    except Exception as e:
-        print(f"❌ 파일 저장 중 오류 발생: {e}")
 
     # try:
     #     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
