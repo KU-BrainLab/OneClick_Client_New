@@ -1,6 +1,7 @@
 database/
 neuronet/ckpt/
 
+# git ignore
 *.jpg
 *.png
 *.csv
