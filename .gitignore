@@ -1,7 +1,9 @@
 database/
-image/
-data/
 neuronet/ckpt/
+
+*.jpg
+*.png
+*.csv
 
 # Byte-compiled / optimized / DLL files
 .idea/

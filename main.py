@@ -10,13 +10,18 @@ import torch
 import pickle
 
 def get_args():
+
+    #Subject Informations
     parser = argparse.ArgumentParser()
-    parser.add_argument('--name', default='알파파', type=str)
-    parser.add_argument('--age', default=20, type=int)
-    parser.add_argument('--measurement_date', default='2025-08-27 14:35', type=str)
-    parser.add_argument('--birth', default='2004-01-17', type=str)
-    parser.add_argument('--sex', default='female', choices=['male', 'female'], type=str)
-    parser.add_argument('--file_name', default='2025-08-05-1329.csv', type=str)
+    parser.add_argument('--NAME', default='테스트', type=str)
+    parser.add_argument('--AGE', default=20, type=int)
+    parser.add_argument('--MEASUREMENT_DATE', default='2025-09-02 14:46', type=str)
+    parser.add_argument('--BIRTH', default='2004-01-17', type=str)
+    parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
+    parser.add_argument('--FILE_NAME', default='2025-08-05-1329.csv', type=str)
+
+    ### DEBUG_MODE ###
+    parser.add_argument('--DEBUG_MODE', default=False, type=bool)
     return parser.parse_args()
 
 
@@ -81,7 +86,7 @@ if __name__ == '__main__':
     args = get_args()
 
 
-    file = args.file_name
+    file = args.FILE_NAME
 
     #get dir path
     data_path = os.path.abspath('data')
@@ -94,7 +99,7 @@ if __name__ == '__main__':
     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
     cleaned_data = ecg.save_filtered_data(save_path=save_path)
     ext = ECGFeatureExtractor(data_path=os.path.join(save_path, file), save_path=save_path,
-                              sfreq=125, age=args.age, sex=args.sex)
+                              sfreq=125, age=args.AGE, sex=args.SEX)
     hrv_results = ext.extract()
     hrv_payload = json.dumps(hrv_results, cls=NpEncoder)
 
@@ -124,24 +129,39 @@ if __name__ == '__main__':
     ip = '180.83.245.145:8000'
     s_index = ['male', 'female']
 
-    # with open("dummy_ecg.pkl", "wb") as f:
-    #     pickle.dump(hrv_payload, f)
+    if not args.DEBUG_MODE:
+        oo = requests.post('http://{}/api/v1/exp/'.format(ip),
+                        data=json.dumps({'name': args.NAME,
+                                            'measurement_date': args.MEASUREMENT_DATE,
+                                            'age': args.AGE,
+                                            'birth': args.BIRTH,
+                                            'sex': s_index.index(args.SEX),
+                                            'hrv': hrv_payload,
+                                            'eeg': eeg_payload}),
+                        headers=headers)
+        print(oo)
 
-    # with open("dummy_ecg.pkl", "rb") as f:
-    #     hrv_payload = pickle.load(f)
+        print(f"HTTP 상태 코드: {oo.status_code}")
+        print(f"에러 원인: {oo.reason}")
+        #print(f"서버 응답: {oo.text}")
 
-    oo = requests.post('http://{}/api/v1/exp/'.format(ip),
-                       data=json.dumps({'name': args.name,
-                                        'measurement_date': args.measurement_date,
-                                        'age': args.age,
-                                        'birth': args.birth,
-                                        'sex': s_index.index(args.sex),
-                                        'hrv': hrv_payload,
-                                        'eeg': eeg_payload}),
-                       headers=headers)
-    print(oo)
 
-    #
+    filename = "test.json"
+
+    try:
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(json.dumps({'name': args.NAME,
+                                'measurement_date': args.MEASUREMENT_DATE,
+                                'age': args.AGE,
+                                'birth': args.BIRTH,
+                                'sex': s_index.index(args.SEX),
+                                'hrv': hrv_payload,
+                                'eeg': eeg_payload}))
+            
+        print(f"✅ 데이터 페이로드를 '{filename}' 파일로 성공적으로 저장했습니다.")
+    except Exception as e:
+        print(f"❌ 파일 저장 중 오류 발생: {e}")
+
     # try:
     #     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
     #     cleaned_data = ecg.save_filtered_data(save_path=save_path)
