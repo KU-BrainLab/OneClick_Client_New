@@ -1,10 +1,13 @@
-database/
+# model weight
 neuronet/ckpt/
 
-# git ignore
+# image, analysis data
 *.jpg
 *.png
 *.csv
+
+
+#################################################################
 
 # Byte-compiled / optimized / DLL files
 .idea/
