@@ -5,24 +5,25 @@ import argparse
 import numpy as np
 import requests
 from utils.eeg.analysis import main_analysis as eeg_analysis
-from utils.ecg.util_func import CleanUpECG, ECGFeatureExtractor
+from utils.ecg.clean_up import CleanUpECG
+from utils.ecg.feature_extraction import ECGFeatureExtractor
 import torch
 import pickle
 
 def get_args():
-
-    #Subject Informations
+    ### Subject Informations ###
     parser = argparse.ArgumentParser()
     parser.add_argument('--NAME', default='테스트', type=str)
     parser.add_argument('--AGE', default=20, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2025-09-02 14:46', type=str)
+    parser.add_argument('--MEASUREMENT_DATE', default='2025-09-05 12:13', type=str)
     parser.add_argument('--BIRTH', default='2004-01-17', type=str)
     parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
     parser.add_argument('--FILE_NAME', default='2025-08-05-1329.csv', type=str)
 
+
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
-    parser.add_argument('--DEBUG_MODE', default=False, type=bool)
+    parser.add_argument('--DEBUG_MODE', default=True, type=bool)
     return parser.parse_args()
 
 
@@ -82,7 +83,6 @@ def eeg_diff_content_bulk(payload, name):
     }
 
 
-
 if __name__ == '__main__':
     args = get_args()
 
@@ -94,6 +94,11 @@ if __name__ == '__main__':
     save_path = os.path.abspath(save_path)
     # data_path = r"C:\Users\tjd64\OneDrive\바탕 화면\Oneclick\data"
     # save_path = r"C:\Users\tjd64\OneDrive\바탕 화면\Oneclick\data\clean"
+
+    if args.DEBUG_MODE:
+        print("#####################################################")
+        print("######################RUN DEBUG######################")
+        print("#####################################################")
 
     # 신호 이상시
     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
@@ -125,6 +130,8 @@ if __name__ == '__main__':
         'faa' : eeg_results['faa']
     }, cls=NpEncoder)   
     
+    print(eeg_results['sleep_stage'])
+
     headers = {'Content-type': 'application/json', 'Accept': '*/*'}
     ip = '180.83.245.145:8000'
     s_index = ['male', 'female']
@@ -140,42 +147,3 @@ if __name__ == '__main__':
                                             'eeg': eeg_payload}),
                         headers=headers)
         print(oo)
-
-    # try:
-    #     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
-    #     cleaned_data = ecg.save_filtered_data(save_path=save_path)
-    #     ext = ECGFeatureExtractor(data_path=os.path.join(save_path, file), save_path=save_path,
-    #                               sfreq=125, age=args.age, sex=args.sex)
-    #     hrv_results = ext.extract()
-    #     hrv_payload = json.dumps(hrv_results, cls=NpEncoder)
-    #
-    #     del cleaned_data, ext, hrv_results
-    #
-    #     eeg_results = eeg_analysis(os.path.join(data_path, file))
-    #
-    #     eeg_payload = json.dumps({
-    #         'psd': eeg_results['psd_result'],
-    #         'sleep_staging': eeg_results['sleep_stage'],
-    #         'frontal_limbic': eeg_results['frontal_limbic'],
-    #         'baseline': eeg_content_bulk(eeg_results, 'baseline'),
-    #         'stimulation1': eeg_content_bulk(eeg_results, 'stimulation1'),
-    #         'recovery1': eeg_content_bulk(eeg_results, 'recovery1'),
-    #         'stimulation2': eeg_content_bulk(eeg_results, 'stimulation2'),
-    #         'recovery2': eeg_content_bulk(eeg_results, 'recovery2'),
-    #     }, cls=NpEncoder)
-    #
-    #     headers = {'Content-type': 'application/json', 'Accept': '*/*'}
-    #     ip = '180.83.245.145:8000'
-    #     s_index = ['male', 'female']
-    #     oo = requests.post('http://{}/api/v1/exp/'.format(ip),
-    #                        data=json.dumps({'name': args.name,
-    #                                         'measurement_date': args.measurement_date,
-    #                                         'age': args.age,
-    #                                         'birth': args.birth,
-    #                                         'sex': s_index.index(args.sex),
-    #                                         'hrv': hrv_payload,
-    #                                         'eeg': eeg_payload}),
-    #                        headers=headers)
-    #     print(oo)
-    # except Exception:
-    #     print('분석 불가!! 관리자에게 문의하시오')

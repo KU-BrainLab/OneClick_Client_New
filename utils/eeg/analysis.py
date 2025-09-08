@@ -65,7 +65,7 @@ def main_analysis(path):
     brain_conn_diff_coh = get_diff_brain_connectivity(epoch_data, myuuid, 'coh')
     brain_conn_diff_plv = get_diff_brain_connectivity(epoch_data, myuuid, 'plv')
     brain_faa = get_frontal_alpha_asymmetry(epoch_data, myuuid)
-
+    
     return {
         'topography': brain_topograhpy,
         'connectivity': brain_conn_coh,

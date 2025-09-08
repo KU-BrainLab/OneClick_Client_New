@@ -20,7 +20,6 @@ class CleanUpECG:
         self.sfreq = sfreq
 
         # 데이터 구조 = EEG (0-15열), ECG (16열), Trigger (-1열)
-        print(data_path)
         data = DataFilter.read_file(data_path)
 
         # Trigger = {0: 기본, 1이상: 사용자 지정 trigger 신호}
@@ -46,6 +45,24 @@ class CleanUpECG:
         experiment_time_s = len(filtered_ecg) / sfreq  # seconds
         experiment_time_m = int(experiment_time_s / 60)  # minutes
         print(f'Total experiments time = {experiment_time_m} minutes')
+
+        check_trigger = filtered_trigger.tolist() + [len(ecg)]
+        protocol, exp_time = [], []
+        for idx in range(len(check_trigger) - 1):
+            duration = (check_trigger[idx + 1] - check_trigger[idx]) // 7500
+            exp_time.append(duration)
+            if idx == 0:
+                print(f'Baseline  {duration} min')
+                protocol.append('Baseline')
+            elif idx % 2 == 1:
+                print(f'Stimulation{(idx // 2) + 1}  {duration} min')
+                protocol.append(f'Stimulation{(idx // 2) + 1}')
+            else:
+                print(f'Recovery{(idx // 2)}  {duration} min')
+                protocol.append(f'Recovery{(idx // 2)}')
+
+        self.protocol = protocol
+        self.exp_time = exp_time
 
     def outlier_detection(self):
         self.plot_nni()
@@ -164,8 +181,10 @@ class CleanUpECG:
         plt.figure(figsize=(12, 5))
         plt.plot(self.nni)
         plt.show()
+        plt.close('all')
 
     def save_filtered_data(self, save_path):
+        os.makedirs(save_path, exist_ok=True)
         file_name = os.path.split(self.data_path)[-1]
         df_data = {
             'ecg': self.filtered_ecg,
