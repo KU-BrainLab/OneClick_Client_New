@@ -15,11 +15,10 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--NAME', default='테스트', type=str)
     parser.add_argument('--AGE', default=20, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2025-09-05 12:13', type=str)
+    parser.add_argument('--MEASUREMENT_DATE', default='2025-09-09 13:19', type=str)
     parser.add_argument('--BIRTH', default='2004-01-17', type=str)
     parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2025-08-05-1329.csv', type=str)
-
+    parser.add_argument('--FILE_NAME', default='2025-09-09-1221.csv', type=str)
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
@@ -97,7 +96,7 @@ if __name__ == '__main__':
 
     if args.DEBUG_MODE:
         print("#####################################################")
-        print("######################RUN DEBUG######################")
+        print("####################  DEBUG MODE  ###################")
         print("#####################################################")
 
     # 신호 이상시
@@ -128,9 +127,33 @@ if __name__ == '__main__':
         'diff3': eeg_diff_content_bulk(eeg_results, 'diff3'),
         'diff4': eeg_diff_content_bulk(eeg_results, 'diff4'),
         'faa' : eeg_results['faa']
-    }, cls=NpEncoder)   
-    
-    print(eeg_results['sleep_stage'])
+    }, cls=NpEncoder)
+
+    '''
+
+    report_payload = json.dumps({
+        'tib' : eeg_results['sleep_report']['tib'],
+        'tst' : eeg_results['sleep_report']['tst'],
+        'twt' : eeg_results['sleep_report']['twt'],
+        'waso' : eeg_results['sleep_report']['waso'],
+        'sleep_latency' : eeg_results['sleep_report']['sleep_latency'],
+        'rem_latency' : eeg_results['sleep_report']['rem_latency'],
+        'sleep_eff' : eeg_results['sleep_report']['sleep_eff'],
+
+        'n1_tst': eeg_results['sleep_report']['sleep_tst'][0],
+        'n2_tst': eeg_results['sleep_report']['sleep_tst'][1],
+        'n3_tst': eeg_results['sleep_report']['sleep_tst'][2],
+        'nrem_tst': eeg_results['sleep_report']['sleep_tst'][3],
+        'rem_tst': eeg_results['sleep_report']['sleep_tst'][4],
+
+        'n1_min': eeg_results['sleep_report']['sleep_min'][0],
+        'n2_min': eeg_results['sleep_report']['sleep_min'][1],
+        'n3_min': eeg_results['sleep_report']['sleep_min'][2],
+        'nrem_min': eeg_results['sleep_report']['sleep_min'][3],
+        'rem_min': eeg_results['sleep_report']['sleep_min'][4]        
+    }, cls=NpEncoder)
+
+    '''
 
     headers = {'Content-type': 'application/json', 'Accept': '*/*'}
     ip = '180.83.245.145:8000'

@@ -23,7 +23,7 @@ def compute_sleep_metrics(stage_list, epoch_sec: int = 30):
         sleep_latency = None
 
     # REM onset
-    rem_latency = None
+    rem_latency = 0
     if sleep_onset_idx is not None:
         try:
             rem_idx = next(i for i, s in enumerate(stage_list[sleep_onset_idx:], start=sleep_onset_idx) if s == 4)
@@ -48,13 +48,13 @@ def compute_sleep_metrics(stage_list, epoch_sec: int = 30):
     sleep_eff = (tst / tib * 100.0) if tib > 0 else None
 
     return {
-        "TIB (min)": tib,
-        "TST (min)": tst,
-        "TWT (min)": twt,
-        "WASO (min)": waso,
-        "Sleep Latency (min)": sleep_latency,
-        "REM Latency (min)": rem_latency,
-        "Sleep Efficiency (%)": sleep_eff,
+        "tib": tib,
+        "tst": tst,
+        "twt": twt,
+        "waso": waso,
+        "sleep_latency": sleep_latency,
+        "rem_latency": rem_latency,
+        "sleep_eff": sleep_eff,
     }
 
 def get_sleep_staging(epoch_data, ch_list):
@@ -140,14 +140,11 @@ def get_sleep_staging(epoch_data, ch_list):
     rem_min = sleep_stage.count(4) * 30 / 60
 
     sleep_summary = compute_sleep_metrics(sleep_stage, 30)
-    sleep_summary['sleep_tst'] = list([w_tst, n1_tst, n2_tst, nrem_tst, rem_tst])
-    sleep_summary['sleep_min'] = list([w_min, n1_min, n2_min, nrem_min, rem_min])
+    sleep_summary['sleep_tst'] = list([n1_tst, n2_tst, n3_tst, nrem_tst, rem_tst])
+    sleep_summary['sleep_min'] = list([n1_min, n2_min, n3_min, nrem_min, rem_min])
 
     return {
         'sleep_stage': sleep_stage,
         'sleep_stage_prob': list([list(prob) for prob in sleep_stage_prob]),
         'sleep_summary' : sleep_summary
     }
-
-
-

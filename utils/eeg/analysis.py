@@ -66,13 +66,16 @@ def main_analysis(path):
     brain_conn_diff_plv = get_diff_brain_connectivity(epoch_data, myuuid, 'plv')
     brain_faa = get_frontal_alpha_asymmetry(epoch_data, myuuid)
     
+    brain_sleep = {key: brain_sleep_stage[key] for key in ['sleep_stage', 'sleep_stage_prob']}
+    #brain_report_summary = brain_sleep_stage['sleep_summary']
+
     return {
         'topography': brain_topograhpy,
         'connectivity': brain_conn_coh,
         'connectivity2': brain_conn_plv,
         'psd_result': brain_psd,
         'frontal_limbic': brain_fronto_limbic,
-        'sleep_stage': brain_sleep_stage,
+        'sleep_stage': brain_sleep,
         'topography_diff': brain_psd_diff,
         'connectivity_diff': brain_conn_diff_coh,
         'connectivity2_diff': brain_conn_diff_plv,
