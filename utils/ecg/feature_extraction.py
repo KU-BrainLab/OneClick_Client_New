@@ -390,9 +390,8 @@ class ECGFeatureExtractor:
 
 
         if whole is False:
-            params = ['sdnn', 'rmssd', 'sdsd', 'nn50', 'pnn50']
-
-            fig = tools.heart_rate_heatplot(nni=nni, age=self.age, gender=self.sex, show=False)
+            params = ['sdnn', 'rmssd', 'sdsd', 'nn50', 'pnn50']            
+            fig = tools.heart_rate_heatplot(nni=nni, age=int(self.age), gender=str(self.sex), show=False)
             fig[0].savefig(os.path.join(self.save_path, f'fig1_{phase}.png'))
             plt.close('all')
             _, frequency, power = fd.welch_psd(rpeaks=t[rpeaks], show=False, mode='dev')
