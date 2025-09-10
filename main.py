@@ -5,18 +5,24 @@ import argparse
 import numpy as np
 import requests
 from utils.eeg.analysis import main_analysis as eeg_analysis
-from utils.ecg.util_func import CleanUpECG, ECGFeatureExtractor
+from utils.ecg.clean_up import CleanUpECG
+from utils.ecg.feature_extraction import ECGFeatureExtractor
 import torch
 import pickle
 
 def get_args():
+    ### Subject Informations ###
     parser = argparse.ArgumentParser()
-    parser.add_argument('--name', default='알파파', type=str)
-    parser.add_argument('--age', default=20, type=int)
-    parser.add_argument('--measurement_date', default='2025-08-27 14:35', type=str)
-    parser.add_argument('--birth', default='2004-01-17', type=str)
-    parser.add_argument('--sex', default='female', choices=['male', 'female'], type=str)
-    parser.add_argument('--file_name', default='2025-08-05-1329.csv', type=str)
+    parser.add_argument('--NAME', default='테스트', type=str)
+    parser.add_argument('--AGE', default=34, type=int)
+    parser.add_argument('--MEASUREMENT_DATE', default='2025-09-09 13:19', type=str)
+    parser.add_argument('--BIRTH', default='2004-01-17', type=str)
+    parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
+    parser.add_argument('--FILE_NAME', default='2025-09-09-1221.csv', type=str)
+
+    ### DEBUG_MODE ###
+    ### False일때만 서버로 전송됨 ###
+    parser.add_argument('--DEBUG_MODE', default=False, type=bool)
     return parser.parse_args()
 
 
@@ -76,12 +82,10 @@ def eeg_diff_content_bulk(payload, name):
     }
 
 
-
 if __name__ == '__main__':
     args = get_args()
 
-
-    file = args.file_name
+    file = args.FILE_NAME
 
     #get dir path
     data_path = os.path.abspath('data')
@@ -90,11 +94,16 @@ if __name__ == '__main__':
     # data_path = r"C:\Users\tjd64\OneDrive\바탕 화면\Oneclick\data"
     # save_path = r"C:\Users\tjd64\OneDrive\바탕 화면\Oneclick\data\clean"
 
+    if args.DEBUG_MODE:
+        print("#####################################################")
+        print("####################  DEBUG MODE  ###################")
+        print("#####################################################")
+
     # 신호 이상시
     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
     cleaned_data = ecg.save_filtered_data(save_path=save_path)
     ext = ECGFeatureExtractor(data_path=os.path.join(save_path, file), save_path=save_path,
-                              sfreq=125, age=args.age, sex=args.sex)
+                              sfreq=125, age=args.AGE, sex=args.SEX)
     hrv_results = ext.extract()
     hrv_payload = json.dumps(hrv_results, cls=NpEncoder)
 
@@ -118,65 +127,44 @@ if __name__ == '__main__':
         'diff3': eeg_diff_content_bulk(eeg_results, 'diff3'),
         'diff4': eeg_diff_content_bulk(eeg_results, 'diff4'),
         'faa' : eeg_results['faa']
-    }, cls=NpEncoder)   
-    
+    }, cls=NpEncoder)
+
+    report_payload = json.dumps({
+        'tib' : eeg_results['sleep_report']['tib'],
+        'tst' : eeg_results['sleep_report']['tst'],
+        'twt' : eeg_results['sleep_report']['twt'],
+        'waso' : eeg_results['sleep_report']['waso'],
+        'sleep_latency' : eeg_results['sleep_report']['sleep_latency'],
+        'rem_latency' : eeg_results['sleep_report']['rem_latency'],
+        'sleep_eff' : eeg_results['sleep_report']['sleep_eff'],
+
+        'sleep_n1_tst': eeg_results['sleep_report']['sleep_tst'][0],
+        'sleep_n2_tst': eeg_results['sleep_report']['sleep_tst'][1],
+        'sleep_n3_tst': eeg_results['sleep_report']['sleep_tst'][2],
+        'sleep_nrem_tst': eeg_results['sleep_report']['sleep_tst'][3],
+        'sleep_rem_tst': eeg_results['sleep_report']['sleep_tst'][4],
+
+        'sleep_n1_min': eeg_results['sleep_report']['sleep_min'][0],
+        'sleep_n2_min': eeg_results['sleep_report']['sleep_min'][1],
+        'sleep_n3_min': eeg_results['sleep_report']['sleep_min'][2],
+        'sleep_nrem_min': eeg_results['sleep_report']['sleep_min'][3],
+        'sleep_rem_min': eeg_results['sleep_report']['sleep_min'][4]        
+    }, cls=NpEncoder)
+
+
     headers = {'Content-type': 'application/json', 'Accept': '*/*'}
     ip = '180.83.245.145:8000'
     s_index = ['male', 'female']
 
-    # with open("dummy_ecg.pkl", "wb") as f:
-    #     pickle.dump(hrv_payload, f)
-
-    # with open("dummy_ecg.pkl", "rb") as f:
-    #     hrv_payload = pickle.load(f)
-
-    oo = requests.post('http://{}/api/v1/exp/'.format(ip),
-                       data=json.dumps({'name': args.name,
-                                        'measurement_date': args.measurement_date,
-                                        'age': args.age,
-                                        'birth': args.birth,
-                                        'sex': s_index.index(args.sex),
-                                        'hrv': hrv_payload,
-                                        'eeg': eeg_payload}),
-                       headers=headers)
-    print(oo)
-
-    #
-    # try:
-    #     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
-    #     cleaned_data = ecg.save_filtered_data(save_path=save_path)
-    #     ext = ECGFeatureExtractor(data_path=os.path.join(save_path, file), save_path=save_path,
-    #                               sfreq=125, age=args.age, sex=args.sex)
-    #     hrv_results = ext.extract()
-    #     hrv_payload = json.dumps(hrv_results, cls=NpEncoder)
-    #
-    #     del cleaned_data, ext, hrv_results
-    #
-    #     eeg_results = eeg_analysis(os.path.join(data_path, file))
-    #
-    #     eeg_payload = json.dumps({
-    #         'psd': eeg_results['psd_result'],
-    #         'sleep_staging': eeg_results['sleep_stage'],
-    #         'frontal_limbic': eeg_results['frontal_limbic'],
-    #         'baseline': eeg_content_bulk(eeg_results, 'baseline'),
-    #         'stimulation1': eeg_content_bulk(eeg_results, 'stimulation1'),
-    #         'recovery1': eeg_content_bulk(eeg_results, 'recovery1'),
-    #         'stimulation2': eeg_content_bulk(eeg_results, 'stimulation2'),
-    #         'recovery2': eeg_content_bulk(eeg_results, 'recovery2'),
-    #     }, cls=NpEncoder)
-    #
-    #     headers = {'Content-type': 'application/json', 'Accept': '*/*'}
-    #     ip = '180.83.245.145:8000'
-    #     s_index = ['male', 'female']
-    #     oo = requests.post('http://{}/api/v1/exp/'.format(ip),
-    #                        data=json.dumps({'name': args.name,
-    #                                         'measurement_date': args.measurement_date,
-    #                                         'age': args.age,
-    #                                         'birth': args.birth,
-    #                                         'sex': s_index.index(args.sex),
-    #                                         'hrv': hrv_payload,
-    #                                         'eeg': eeg_payload}),
-    #                        headers=headers)
-    #     print(oo)
-    # except Exception:
-    #     print('분석 불가!! 관리자에게 문의하시오')
+    if not args.DEBUG_MODE:
+        oo = requests.post('http://{}/api/v1/exp/'.format(ip),
+                        data=json.dumps({'name': args.NAME,
+                                            'measurement_date': args.MEASUREMENT_DATE,
+                                            'age': args.AGE,
+                                            'birth': args.BIRTH,
+                                            'sex': s_index.index(args.SEX),
+                                            'hrv': hrv_payload,
+                                            'eeg': eeg_payload,
+                                            'report': report_payload}),
+                        headers=headers)
+        print(oo)
