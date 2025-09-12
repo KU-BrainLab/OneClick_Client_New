@@ -172,6 +172,7 @@ if __name__ == '__main__':
                                             'age': args.AGE,
                                             'birth': args.BIRTH,
                                             'sex': s_index.index(args.SEX),
+                                            'hrv': hrv_payload,
                                             'eeg': eeg_payload,
                                             'report': report_payload}),
                         headers=headers)

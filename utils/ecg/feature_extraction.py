@@ -388,7 +388,6 @@ class ECGFeatureExtractor:
         nni = tools.nn_intervals(t[rpeaks])
         nni = np.clip(nni, 400, 1200) + np.random.randint(1,15, size=nni.shape)
 
-
         if whole is False:
             params = ['sdnn', 'rmssd', 'sdsd', 'nn50', 'pnn50']            
             fig = tools.heart_rate_heatplot(nni=nni, age=int(self.age), gender=str(self.sex), show=False)
