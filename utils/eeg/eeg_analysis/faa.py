@@ -51,7 +51,7 @@ def get_frontal_alpha_asymmetry(epoch_data, uuid):
 
     def plot_faa_on_brain_fuc(faa_value, title):
         # 이미지 불러오기
-        brain_img_path = './test.png'
+        brain_img_path = './brain.png'
         img = mpimg.imread(brain_img_path)
         height, width, _ = img.shape
 

@@ -22,6 +22,7 @@ def get_args():
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
+    ### 확인 필수로 해주세요 ###
     parser.add_argument('--DEBUG_MODE', default=False, type=bool)
     return parser.parse_args()
 
@@ -98,17 +99,25 @@ if __name__ == '__main__':
         print("#####################################################")
         print("####################  DEBUG MODE  ###################")
         print("#####################################################")
+    else:
+        print("#####################################################")
+        print("####################  LIVE MODE  ####################")
+        print("#####################################################")
 
+    # ECG    
     # 신호 이상시
     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
-    cleaned_data = ecg.save_filtered_data(save_path=save_path)
-    ext = ECGFeatureExtractor(data_path=os.path.join(save_path, file), save_path=save_path,
-                              sfreq=125, age=args.AGE, sex=args.SEX)
-    hrv_results = ext.extract()
-    hrv_payload = json.dumps(hrv_results, cls=NpEncoder)
 
-    del cleaned_data, ext, hrv_results
+    if(ecg.isValid):
+        cleaned_data = ecg.save_filtered_data(save_path=save_path)        
+        ext = ECGFeatureExtractor(data_path=os.path.join(save_path, file), save_path=save_path,
+                                    sfreq=125, age=args.AGE, sex=args.SEX)
+        hrv_results = ext.extract()
+        hrv_payload = json.dumps(hrv_results, cls=NpEncoder)
 
+        del cleaned_data, ext, hrv_results
+    else:
+        hrv_payload = json.dumps("", cls=NpEncoder)
 
     ## 신호 이상시
     eeg_results = eeg_analysis(os.path.join(data_path, file))
@@ -163,7 +172,6 @@ if __name__ == '__main__':
                                             'age': args.AGE,
                                             'birth': args.BIRTH,
                                             'sex': s_index.index(args.SEX),
-                                            'hrv': hrv_payload,
                                             'eeg': eeg_payload,
                                             'report': report_payload}),
                         headers=headers)

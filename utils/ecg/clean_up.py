@@ -28,41 +28,45 @@ class CleanUpECG:
 
         # ECG 신호 처리
         ecg = data[16, filtered_trigger[0]:] / 1e6  # 시작-끝 데이터 추출
-        t, filtered_ecg, rpeaks = biosppy.signals.ecg.ecg(ecg, show=False, sampling_rate=sfreq)[:3]
+        
+        try:
+            t, filtered_ecg, rpeaks = biosppy.signals.ecg.ecg(ecg, show=False, sampling_rate=sfreq)[:3]
+            self.t = t  # (signal_length, ) 각 점들을 "초" 단위로 변환
+            self.trigger = trigger[filtered_trigger[0]:]  # 트리거의 시작 부분부터 가져오기
+            self.filtered_ecg = filtered_ecg  # (signal_length, )
+            self.filtered_trigger = filtered_trigger  # (signal_length, )
+            self.rpeaks = rpeaks  # (reaks, ) R-peak location indices. ex) [77, 183. 291 ...]
+            self.nni = tools.nn_intervals(t[rpeaks])  # (reapks-1, ) R-peak 사이의 시간
 
-        self.t = t  # (signal_length, ) 각 점들을 "초" 단위로 변환
-        self.trigger = trigger[filtered_trigger[0]:]  # 트리거의 시작 부분부터 가져오기
-        self.filtered_ecg = filtered_ecg  # (signal_length, )
-        self.filtered_trigger = filtered_trigger  # (signal_length, )
-        self.rpeaks = rpeaks  # (reaks, ) R-peak location indices. ex) [77, 183. 291 ...]
-        self.nni = tools.nn_intervals(t[rpeaks])  # (reapks-1, ) R-peak 사이의 시간
+            # nni 값이 이상할 때 search 하기 위한 부분
+            self.low_search = True
+            self.high_search = True
 
-        # nni 값이 이상할 때 search 하기 위한 부분
-        self.low_search = True
-        self.high_search = True
+            # 총 실험 시간 출력 (기기 결함 있을 시, 실험 시간이 비정상적으로 출력됨)
+            experiment_time_s = len(filtered_ecg) / sfreq  # seconds
+            experiment_time_m = int(experiment_time_s / 60)  # minutes
+            print(f'Total experiments time = {experiment_time_m} minutes')
 
-        # 총 실험 시간 출력 (기기 결함 있을 시, 실험 시간이 비정상적으로 출력됨)
-        experiment_time_s = len(filtered_ecg) / sfreq  # seconds
-        experiment_time_m = int(experiment_time_s / 60)  # minutes
-        print(f'Total experiments time = {experiment_time_m} minutes')
+            check_trigger = filtered_trigger.tolist() + [len(ecg)]
+            protocol, exp_time = [], []
+            for idx in range(len(check_trigger) - 1):
+                duration = (check_trigger[idx + 1] - check_trigger[idx]) // 7500
+                exp_time.append(duration)
+                if idx == 0:
+                    print(f'Baseline  {duration} min')
+                    protocol.append('Baseline')
+                elif idx % 2 == 1:
+                    print(f'Stimulation{(idx // 2) + 1}  {duration} min')
+                    protocol.append(f'Stimulation{(idx // 2) + 1}')
+                else:
+                    print(f'Recovery{(idx // 2)}  {duration} min')
+                    protocol.append(f'Recovery{(idx // 2)}')
 
-        check_trigger = filtered_trigger.tolist() + [len(ecg)]
-        protocol, exp_time = [], []
-        for idx in range(len(check_trigger) - 1):
-            duration = (check_trigger[idx + 1] - check_trigger[idx]) // 7500
-            exp_time.append(duration)
-            if idx == 0:
-                print(f'Baseline  {duration} min')
-                protocol.append('Baseline')
-            elif idx % 2 == 1:
-                print(f'Stimulation{(idx // 2) + 1}  {duration} min')
-                protocol.append(f'Stimulation{(idx // 2) + 1}')
-            else:
-                print(f'Recovery{(idx // 2)}  {duration} min')
-                protocol.append(f'Recovery{(idx // 2)}')
-
-        self.protocol = protocol
-        self.exp_time = exp_time
+            self.protocol = protocol
+            self.exp_time = exp_time
+            self.isValid = True
+        except ValueError as e:
+            self.isValid = False
 
     def outlier_detection(self):
         self.plot_nni()

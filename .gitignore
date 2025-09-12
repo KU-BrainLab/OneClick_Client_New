@@ -4,6 +4,7 @@ neuronet/ckpt/
 # image, analysis data
 *.jpg
 *.png
+!brain.png
 *.csv
 
 
