@@ -321,6 +321,7 @@ class ECGFeatureExtractor:
             'stimulation2': stimulation2_hrv,
             'recovery2': recovery2_hrv
         }
+
         return sample
 
     # baseline-stimulation1  부분만 feature extract 해서 저장
@@ -381,11 +382,12 @@ class ECGFeatureExtractor:
             start_idx += self.sfreq * 10
             end_idx += self.sfreq * 10
 
-        return nni, rmssd
+        return filtered_arr.tolist(), rmssd
 
     def feature_extract(self, ecg, whole=False, phase=''):
         t, _, rpeaks = biosppy.signals.ecg.ecg(ecg, show=False, sampling_rate=self.sfreq)[:3]
         nni = tools.nn_intervals(t[rpeaks])
+
         nni = np.clip(nni, 400, 1200) + np.random.randint(1,15, size=nni.shape)
 
         if whole is False:

@@ -28,7 +28,7 @@ class CleanUpECG:
 
         # ECG 신호 처리
         ecg = data[16, filtered_trigger[0]:] / 1e6  # 시작-끝 데이터 추출
-        
+
         try:
             t, filtered_ecg, rpeaks = biosppy.signals.ecg.ecg(ecg, show=False, sampling_rate=sfreq)[:3]
             self.t = t  # (signal_length, ) 각 점들을 "초" 단위로 변환
