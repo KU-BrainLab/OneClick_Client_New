@@ -376,10 +376,7 @@ class ECGFeatureExtractor:
             else:
                 trigger_list.append(0)
 
-            print("Sliding Window ECG : ", ecg)
-            print()
             df = self.feature_extract(ecg, whole=True)
-            print(df)
             rmssd.append(df['rmssd'])
 
             start_idx += self.sfreq * 10
@@ -391,8 +388,6 @@ class ECGFeatureExtractor:
         t, _, rpeaks = biosppy.signals.ecg.ecg(ecg, show=False, sampling_rate=self.sfreq)[:3]
         nni = tools.nn_intervals(t[rpeaks])
         nni = np.clip(nni, 400, 1200) + np.random.randint(1,15, size=nni.shape)
-
-        print("filtered ECG : ", nni)
 
 
         if whole is False:
