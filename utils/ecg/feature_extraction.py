@@ -201,7 +201,13 @@ def radar_chart(nni=None,
     # Prepare plot data
     ax.set_varlabels([para_func[s][1].replace(' ', '\n') for s in ref_params.keys()])
     ref_vals = [100 for x in ref_params.keys()]
-    com_vals = [comp_params[p] / ref_params[p] * 100 for p in ref_params.keys()]
+    # com_vals = [comp_params[p] / ref_params[p] * 100 for p in ref_params.keys()]
+    com_vals = [
+        100 if ref_params[p] == 0 and comp_params.get(p, 0) == 0
+        else 100*10 if ref_params[p] == 0
+        else comp_params.get(p, 0) / ref_params[p] * 100
+        for p in ref_params
+    ]
 
     # Plot data
     for i, vals in enumerate([ref_vals, com_vals]):
@@ -302,13 +308,13 @@ class ECGFeatureExtractor:
         })
         stimulation2_hrv, stimulation2_psd = self.stimulation2()
         stimulation2_hrv.update({
-            'psd': stimulation1_psd,
+            'psd': stimulation2_psd,
             'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Stimulation2.png')),
             'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Stimulation2.png')),
         })
         recovery2_hrv, recovery2_psd = self.recovery2()
         recovery2_hrv.update({
-            'psd': recovery1_psd,
+            'psd': recovery2_psd,
             'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Recovery2.png')),
             'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Recovery2.png')),
         })
@@ -359,6 +365,8 @@ class ECGFeatureExtractor:
         filtered_arr = nni[(nni >= 400) & (nni <= 1200)]
         self.whole_nni = filtered_arr.tolist()
 
+
+
         start_idx, end_idx = 0, self.sfreq * 300
         trigger_idx = 0
         rmssd, lh_ratio, lf, hf, trigger_list = [], [], [], [], []
@@ -382,13 +390,14 @@ class ECGFeatureExtractor:
             start_idx += self.sfreq * 10
             end_idx += self.sfreq * 10
 
-        return filtered_arr.tolist(), rmssd
+        return self.whole_nni, rmssd
 
     def feature_extract(self, ecg, whole=False, phase=''):
         t, _, rpeaks = biosppy.signals.ecg.ecg(ecg, show=False, sampling_rate=self.sfreq)[:3]
         nni = tools.nn_intervals(t[rpeaks])
 
-        nni = np.clip(nni, 400, 1200) + np.random.randint(1,15, size=nni.shape)
+        # nni = np.clip(nni, 400, 1200) # + np.random.randint(1,15, size=nni.shape)
+        nni = nni[(nni >= 400) & (nni <= 1200)]
 
         if whole is False:
             params = ['sdnn', 'rmssd', 'sdsd', 'nn50', 'pnn50']            
