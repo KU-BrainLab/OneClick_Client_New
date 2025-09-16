@@ -302,13 +302,13 @@ class ECGFeatureExtractor:
         })
         stimulation2_hrv, stimulation2_psd = self.stimulation2()
         stimulation2_hrv.update({
-            'psd': stimulation1_psd,
+            'psd': stimulation2_psd,
             'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Stimulation2.png')),
             'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Stimulation2.png')),
         })
         recovery2_hrv, recovery2_psd = self.recovery2()
         recovery2_hrv.update({
-            'psd': recovery1_psd,
+            'psd': recovery2_psd,
             'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Recovery2.png')),
             'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Recovery2.png')),
         })
@@ -376,7 +376,10 @@ class ECGFeatureExtractor:
             else:
                 trigger_list.append(0)
 
+            print("Sliding Window ECG : ", ecg)
+            print()
             df = self.feature_extract(ecg, whole=True)
+            print(df)
             rmssd.append(df['rmssd'])
 
             start_idx += self.sfreq * 10
@@ -387,8 +390,10 @@ class ECGFeatureExtractor:
     def feature_extract(self, ecg, whole=False, phase=''):
         t, _, rpeaks = biosppy.signals.ecg.ecg(ecg, show=False, sampling_rate=self.sfreq)[:3]
         nni = tools.nn_intervals(t[rpeaks])
-
         nni = np.clip(nni, 400, 1200) + np.random.randint(1,15, size=nni.shape)
+
+        print("filtered ECG : ", nni)
+
 
         if whole is False:
             params = ['sdnn', 'rmssd', 'sdsd', 'nn50', 'pnn50']            
