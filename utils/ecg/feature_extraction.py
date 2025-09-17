@@ -122,7 +122,7 @@ def radar_chart(nni=None,
                 index = 2
                 parameter = parameter.replace('_hf', '')
             val = eval(func + '(nni=nni_series, mode=\'dev\')[0][\'%s\']' % (parameter))
-            val = val[index]
+            #val = val[index]
         except TypeError as e:
             if 'mode' in str(e):
                 try:
@@ -201,13 +201,16 @@ def radar_chart(nni=None,
     # Prepare plot data
     ax.set_varlabels([para_func[s][1].replace(' ', '\n') for s in ref_params.keys()])
     ref_vals = [100 for x in ref_params.keys()]
-    # com_vals = [comp_params[p] / ref_params[p] * 100 for p in ref_params.keys()]
+    #com_vals = [comp_params[p] / ref_params[p] * 100 for p in ref_params.keys()]
+
     com_vals = [
         100 if ref_params[p] == 0 and comp_params.get(p, 0) == 0
-        else 100*10 if ref_params[p] == 0
+        else 100*2 if ref_params[p] == 0
         else comp_params.get(p, 0) / ref_params[p] * 100
         for p in ref_params
     ]
+
+    ax.set_ylim(0, 200)
 
     # Plot data
     for i, vals in enumerate([ref_vals, com_vals]):
@@ -362,7 +365,7 @@ class ECGFeatureExtractor:
     def whole(self):
         t, _, rpeaks = biosppy.signals.ecg.ecg(self.ecg, show=False, sampling_rate=self.sfreq)[:3]
         nni = tools.nn_intervals(t[rpeaks])
-        filtered_arr = nni[(nni >= 400) & (nni <= 1200)]
+        filtered_arr = nni[(nni >= 400) & (nni <= 1500)]
         self.whole_nni = filtered_arr.tolist()
 
 
@@ -397,14 +400,15 @@ class ECGFeatureExtractor:
         nni = tools.nn_intervals(t[rpeaks])
 
         # nni = np.clip(nni, 400, 1200) # + np.random.randint(1,15, size=nni.shape)
-        nni = nni[(nni >= 400) & (nni <= 1200)]
+        nni = nni[(nni >= 400) & (nni <= 1500)]
 
         if whole is False:
-            params = ['sdnn', 'rmssd', 'sdsd', 'nn50', 'pnn50']            
+            params = ['sdnn', 'rmssd', 'sdsd', 'fft_ratio', 'pnn50']            
             fig = tools.heart_rate_heatplot(nni=nni, age=int(self.age), gender=str(self.sex), show=False)
             fig[0].savefig(os.path.join(self.save_path, f'fig1_{phase}.png'))
             plt.close('all')
             _, frequency, power = fd.welch_psd(rpeaks=t[rpeaks], show=False, mode='dev')
+
             idx = np.where(frequency < 0.4)[0]
             self.frequency = frequency[idx]
             self.power = power[idx]
