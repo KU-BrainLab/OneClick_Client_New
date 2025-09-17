@@ -15,6 +15,8 @@ import pyhrv.time_domain as td
 import pyhrv.frequency_domain as fd
 from matplotlib.projections import register_projection
 
+from matplotlib.ticker import FixedLocator, LogFormatter, ScalarFormatter
+from matplotlib.scale import FuncScale
 
 sns.set()
 sns.set_palette("muted")
@@ -207,12 +209,26 @@ def radar_chart(nni=None,
         else comp_params.get(p, 0) / ref_params[p] * 100
         for p in ref_params
     ]
-    com_vals_plot = [min(v, 200) for v in com_vals]
 
-    ax.set_ylim(0, 200)
+    ticks = [0, 50, 75, 100, 150, 200, 400]
+    pos = np.arange(len(ticks), dtype=float)  # equal steps
+
+    def forward(y):  # data -> axis coords
+        return np.interp(y, ticks, pos)
+
+    def inverse(u):  # axis coords -> data
+        return np.interp(u, pos, ticks)
+
+    ax.set_yscale('function', functions=(forward, inverse))
+    ax.set_ylim(ticks[0], ticks[-1])  # keep within defined range
+
+    # Now ticks are equally spaced; labels show your real values
+    ax.yaxis.set_major_locator(FixedLocator(ticks))
+    ax.yaxis.set_major_formatter(ScalarFormatter())
+
 
     # Plot data
-    for i, vals in enumerate([ref_vals, com_vals_plot]):
+    for i, vals in enumerate([ref_vals, com_vals]):
         ax.plot(theta, vals, color=colors[i])
         ax.fill(theta, vals, color=colors[i], alpha=0.3)
 
