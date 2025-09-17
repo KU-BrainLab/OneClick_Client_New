@@ -201,19 +201,18 @@ def radar_chart(nni=None,
     # Prepare plot data
     ax.set_varlabels([para_func[s][1].replace(' ', '\n') for s in ref_params.keys()])
     ref_vals = [100 for x in ref_params.keys()]
-    #com_vals = [comp_params[p] / ref_params[p] * 100 for p in ref_params.keys()]
-
     com_vals = [
         100 if ref_params[p] == 0 and comp_params.get(p, 0) == 0
-        else 100*2 if ref_params[p] == 0
+        else 100 * 2 if ref_params[p] == 0
         else comp_params.get(p, 0) / ref_params[p] * 100
         for p in ref_params
     ]
+    com_vals_plot = [min(v, 200) for v in com_vals]
 
     ax.set_ylim(0, 200)
 
     # Plot data
-    for i, vals in enumerate([ref_vals, com_vals]):
+    for i, vals in enumerate([ref_vals, com_vals_plot]):
         ax.plot(theta, vals, color=colors[i])
         ax.fill(theta, vals, color=colors[i], alpha=0.3)
 
