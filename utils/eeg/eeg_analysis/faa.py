@@ -31,7 +31,7 @@ def get_frontal_alpha_asymmetry(epoch_data, uuid):
 
     def get_faa_func(data_, ch_names, sfreq):
         alpha_band = (8, 13)
-        l_channels, r_channels = ['Fp1', 'F7', 'F3'], ['Fp2', 'F4', 'F8']
+        l_channels, r_channels = ['Fp1'], ['Fp2']
         l_indices, r_indices = [ch_names.index(ch) for ch in l_channels], [ch_names.index(ch) for ch in r_channels]
 
         data_ = data_.get_data()
