@@ -35,8 +35,15 @@ def get_brain_connectivity(epoch_data, uuid, type):
     elif(type == 'plv'):
         dir = 'connectivity2'
 
+
+    start_arr = [0, int(sample_size * 0.2) , int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9)] 
+    end_arr = [int(sample_size * 0.2), int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9), sample_size]        
+    
     for i in range(5):
-        start, end = i * step, (i+1) * step
+        #start, end = i * step, (i+1) * step
+        start = start_arr[i]
+        end = end_arr[i]
+
         sample = epoch_data[start: end, ...]
         raw = mne.EpochsArray(sample, info=eeg_info)
 

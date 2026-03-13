@@ -30,6 +30,7 @@ def epoching(data, epoch_duration=30., artifact_rejection=False):
 
 def main_analysis(path):
     data = DataFilter.read_file(path)
+
     eeg_data = data[1:16, :] / 1e6
 
     ch_list = ['Fp1', 'F7', 'F3', 'T3', 'C3', 'Cz', 'P3', 'O1', 'Fp2', 'F4', 'F8', 'C4', 'T4', 'P4', 'O2']
@@ -48,6 +49,10 @@ def main_analysis(path):
 
     muscle_idx_auto, scores = ica.find_bads_muscle(filter_data)
     ica.apply(filter_data, exclude=muscle_idx_auto)
+
+    ###
+    # CSV 1~15 eeg 16 ecg -1 TRIGGER
+    ###
 
     # resampling (125 Hz -> 100 Hz)
     filter_data = filter_data.copy().resample(rfreq)
