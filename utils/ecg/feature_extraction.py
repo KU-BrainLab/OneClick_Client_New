@@ -60,6 +60,9 @@ class ECGFeatureExtractor:
 
     def extract(self):
         nni, rmssd = self.whole()
+
+        # print(nni)
+        # print(nni.shape)
         baseline_hrv, baseline_psd = self.baseline()
         baseline_hrv.update({
             'psd': baseline_psd,
@@ -138,7 +141,6 @@ class ECGFeatureExtractor:
         self.whole_nni = filtered_arr.tolist()
 
 
-
         start_idx, end_idx = 0, self.sfreq * 300
         trigger_idx = 0
         rmssd, lh_ratio, lf, hf, trigger_list = [], [], [], [], []
@@ -169,7 +171,10 @@ class ECGFeatureExtractor:
         nni = tools.nn_intervals(t[rpeaks])
 
         # nni = np.clip(nni, 400, 1200) # + np.random.randint(1,15, size=nni.shape)
-        nni = nni[(nni >= 400) & (nni <= 1500)]
+        # nni = nni[(nni >= 400) & (nni <= 1500)]
+
+        print("min nni:", np.min(nni))
+        print("max nni:", np.max(nni))
 
         if whole is False:
             params = ['sdnn', 'rmssd', 'sdsd', 'fft_ratio', 'pnn50']            

@@ -13,12 +13,12 @@ import pickle
 def get_args():
     ### Subject Informations ###
     parser = argparse.ArgumentParser()
-    parser.add_argument('--NAME', default='테스트', type=str)
-    parser.add_argument('--AGE', default=34, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2025-09-09 13:19', type=str)
-    parser.add_argument('--BIRTH', default='2004-01-17', type=str)
-    parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2025-09-09-1221.csv', type=str)
+    parser.add_argument('--NAME', default='Yamaguchi', type=str)
+    parser.add_argument('--AGE', default= 60, type=int)
+    parser.add_argument('--MEASUREMENT_DATE', default='2026-03-13-1816', type=str)
+    parser.add_argument('--BIRTH', default='1965-06-10', type=str)
+    parser.add_argument('--SEX', default='male', choices=['male', 'female'], type=str)
+    parser.add_argument('--FILE_NAME', default='2026-03-13-1816.csv', type=str)
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
@@ -157,7 +157,7 @@ if __name__ == '__main__':
         'sleep_n2_min': eeg_results['sleep_report']['sleep_min'][1],
         'sleep_n3_min': eeg_results['sleep_report']['sleep_min'][2],
         'sleep_nrem_min': eeg_results['sleep_report']['sleep_min'][3],
-        'sleep_rem_min': eeg_results['sleep_report']['sleep_min'][4]        
+        'sleep_rem_min': eeg_results['sleep_report']['sleep_min'][4]
     }, cls=NpEncoder)
 
 

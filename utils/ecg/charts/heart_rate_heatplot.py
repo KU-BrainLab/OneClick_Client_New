@@ -233,7 +233,9 @@ def heart_rate_heatplot(nni=None,
 		# Create classifier counter (preparation for steps after the plot)
 		classifier_counter = {}
 		for key in data.keys():
+			print(key)
 			classifier_counter[key] = 0
+
 
 		# Add threshold lines based on the comparison data
 		for threshold in data.keys():
@@ -244,7 +246,17 @@ def heart_rate_heatplot(nni=None,
 		old_classifier = _get_classification(hr_data[0], data)
 		start_index = 0
 		end_index = 0
+
+
+
 		for hr_val in hr_data:
+			# print("****************************************************************")
+			# print(classifier_counter)
+			# print(old_classifier)
+			# print(hr_val)
+			#
+			# print(nn)
+			# print("****************************************************************")
 			classifier_counter[old_classifier] += 1
 			current_classifier = _get_classification(hr_val, data)
 			if current_classifier != old_classifier:
