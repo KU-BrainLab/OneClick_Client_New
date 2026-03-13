@@ -9,7 +9,7 @@ import os
 import base64
 
 def get_frontal_alpha_asymmetry(epoch_data, uuid):
-    psd_names = ['Baseline', 'Stimulation1', 'Recovery1', 'Stimulation2', 'Recovery2']
+    psd_names = ['delta', 'theta', 'alpha', 'beta', 'gamma']
     files_dict = {name: None for name in psd_names}
 
     def get_psd_analysis_func(data_, sfreq, low, high):
@@ -96,15 +96,8 @@ def get_frontal_alpha_asymmetry(epoch_data, uuid):
     epoch_data = epoch_data.get_data()
     sample_size = epoch_data.shape[0]
     step = sample_size // 5
-
-    start_arr = [0, int(sample_size * 0.2) , int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9)] 
-    end_arr = [int(sample_size * 0.2), int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9), sample_size]        
-
     for i in range(5):
-        #start, end = i * step, (i+1) * step
-        start = start_arr[i]
-        end = end_arr[i]
-
+        start, end = i * step, (i+1) * step
         sample = epoch_data[start: end, ...]
         raw = mne.EpochsArray(sample, info=eeg_info)
         faa = get_faa_func(raw, ch_names=eeg_info['ch_names'], sfreq=eeg_info['sfreq'])

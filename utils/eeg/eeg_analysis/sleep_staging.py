@@ -103,7 +103,7 @@ def get_sleep_staging(epoch_data, ch_list):
         project_root = current_file.parent.parent.parent.parent
         ckpt_path = project_root / 'neuronet' / 'ckpt' / str(i) / 'linear_prob' / 'best_model.pth'
 
-        ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+        ckpt = torch.load(ckpt_path, map_location='cpu')
         model.load_state_dict(ckpt['model_state'])
 
         with torch.no_grad():
