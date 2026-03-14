@@ -44,8 +44,10 @@ class ECGFeatureExtractor:
         self.sex= sex
 
         data = pd.read_csv(data_path)
+
         trigger = data.iloc[:, 1]
         filtered_trigger = np.where(trigger > 0)[0]
+        self.rows = data.shape[0] 
         ecg = data.iloc[:, 0]
 
         self.filtered_trigger = filtered_trigger
@@ -61,8 +63,6 @@ class ECGFeatureExtractor:
     def extract(self):
         nni, rmssd = self.whole()
 
-        # print(nni)
-        # print(nni.shape)
         baseline_hrv, baseline_psd = self.baseline()
         baseline_hrv.update({
             'psd': baseline_psd,
@@ -103,7 +103,8 @@ class ECGFeatureExtractor:
             'recovery2': recovery2_hrv
         }
 
-        return sample
+        self.filtered_trigger //= 7500 
+        return sample, self.filtered_trigger.tolist()
 
     # baseline-stimulation1  부분만 feature extract 해서 저장
     def baseline(self):
@@ -170,12 +171,9 @@ class ECGFeatureExtractor:
         t, _, rpeaks = biosppy.signals.ecg.ecg(ecg, show=False, sampling_rate=self.sfreq)[:3]
         nni = tools.nn_intervals(t[rpeaks])
 
-        # nni = np.clip(nni, 400, 1200) # + np.random.randint(1,15, size=nni.shape)
-        # nni = nni[(nni >= 400) & (nni <= 1500)]
-
-        print("min nni:", np.min(nni))
-        print("max nni:", np.max(nni))
-
+        #nni = np.clip(nni, 400, 1200) # + np.random.randint(1,15, size=nni.shape)
+        #nni = nni[(nni >= 400) & (nni <= 1500)]
+        
         if whole is False:
             params = ['sdnn', 'rmssd', 'sdsd', 'fft_ratio', 'pnn50']            
             fig = heart_rate_heatplot(nni=nni, age=int(self.age), gender=str(self.sex), show=False)

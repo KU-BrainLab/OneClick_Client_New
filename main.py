@@ -112,7 +112,7 @@ if __name__ == '__main__':
         cleaned_data = ecg.save_filtered_data(save_path=save_path)        
         ext = ECGFeatureExtractor(data_path=os.path.join(save_path, file), save_path=save_path,
                                     sfreq=125, age=args.AGE, sex=args.SEX)
-        hrv_results = ext.extract()
+        hrv_results, trigger = ext.extract()
         hrv_payload = json.dumps(hrv_results, cls=NpEncoder)
 
         del cleaned_data, ext, hrv_results
@@ -120,8 +120,7 @@ if __name__ == '__main__':
         hrv_payload = json.dumps("", cls=NpEncoder)
 
     ## 신호 이상시
-    eeg_results = eeg_analysis(os.path.join(data_path, file))
-
+    eeg_results = eeg_analysis(os.path.join(data_path, file), trigger)
     eeg_payload = json.dumps({
         'psd': eeg_results['psd_result'],
         'sleep_staging': eeg_results['sleep_stage'],
@@ -174,6 +173,7 @@ if __name__ == '__main__':
                                             'sex': s_index.index(args.SEX),
                                             'hrv': hrv_payload,
                                             'eeg': eeg_payload,
-                                            'report': report_payload}),
+                                            'report': report_payload,
+                                            'trigger': trigger}),
                         headers=headers)
         print(oo)

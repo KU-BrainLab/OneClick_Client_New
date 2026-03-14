@@ -18,7 +18,7 @@ def center_crop(img, dim):
     crop_img = img[mid_y-ch2:mid_y+ch2, mid_x-cw2:mid_x+cw2]
     return crop_img
 
-def get_brain_connectivity(epoch_data, uuid, type):
+def get_brain_connectivity(epoch_data, uuid, type, trigger):
     epoch_data = copy.deepcopy(epoch_data)
     eeg_info = epoch_data.info
     sfreq = eeg_info['sfreq']
@@ -40,9 +40,8 @@ def get_brain_connectivity(epoch_data, uuid, type):
     end_arr = [int(sample_size * 0.2), int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9), sample_size]        
     
     for i in range(5):
-        #start, end = i * step, (i+1) * step
-        start = start_arr[i]
-        end = end_arr[i]
+        start = trigger[i] * 2
+        end = trigger[i+1] * 2 # 1epoch per 30s
 
         sample = epoch_data[start: end, ...]
         raw = mne.EpochsArray(sample, info=eeg_info)

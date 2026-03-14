@@ -6,7 +6,7 @@ from scipy.integrate import simpson
 import base64
 import os
 
-def get_psd_topography(epoch_data, uuid):
+def get_psd_topography(epoch_data, uuid, trigger):
     from sklearn.preprocessing import StandardScaler
     epoch_data = copy.deepcopy(epoch_data)
     eeg_info = epoch_data.info
@@ -23,17 +23,15 @@ def get_psd_topography(epoch_data, uuid):
     bands = {'delta': [0, 4], 'theta': [4, 8], 'alpha': [8, 13], 'beta': [13, 30], 'gamma': [30, 40]}
     files = {exp_name: {band_name: None for band_name in bands.keys()} for exp_name in exp_names}
 
-        
-    start_arr = [0, int(sample_size * 0.2) , int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9)] 
-    end_arr = [int(sample_size * 0.2), int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9), sample_size]        
-
+    print(epoch_data.shape)
+    print(trigger)
 
     # 1. [Power Spectrum Density]
     for i in range(5):
-        #start, end = i * step, (i+1) * step
-        start = start_arr[i]
-        end = end_arr[i]
+        start = trigger[i] * 2
+        end = trigger[i+1] * 2 # 1epoch per 30s
 
+        print("START END : ", start, end)
         sample = epoch_data[start: end, ...]
         raw = mne.EpochsArray(sample, info=eeg_info)
 

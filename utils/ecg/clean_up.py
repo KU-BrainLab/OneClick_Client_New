@@ -62,6 +62,7 @@ class CleanUpECG:
                     print(f'Recovery{(idx // 2)}  {duration} min')
                     protocol.append(f'Recovery{(idx // 2)}')
 
+            
             self.protocol = protocol
             self.exp_time = exp_time
             self.isValid = True
