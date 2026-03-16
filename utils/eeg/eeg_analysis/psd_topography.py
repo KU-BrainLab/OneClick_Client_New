@@ -6,21 +6,32 @@ from scipy.integrate import simpson
 import base64
 import os
 
-def get_psd_topography(epoch_data, uuid):
+def get_psd_topography(epoch_data, uuid, trigger):
     from sklearn.preprocessing import StandardScaler
     epoch_data = copy.deepcopy(epoch_data)
     eeg_info = epoch_data.info
     epoch_data = epoch_data.get_data()
     sample_size = epoch_data.shape[0]
     step = sample_size // 5
+    
     exp_names = ['baseline', 'stimulation1', 'recovery1', 'stimulation2', 'recovery2']
     bands = {'delta': [0, 4], 'theta': [4, 8], 'alpha': [8, 13], 'beta': [13, 30], 'gamma': [30, 40]}
     files = {exp_name: {band_name: None for band_name in bands.keys()} for exp_name in exp_names}
 
+
     # 1. [Power Spectrum Density]
     for i in range(5):
-        start, end = i * step, (i+1) * step
+        if trigger is not None and len(trigger) >= 6:
+            start = trigger[i] * 2
+            end = trigger[i+1] * 2  # 1epoch per 30s
+        else:
+            step = sample_size // 5
+            start = i * step
+            end = (i + 1) * step
+
         sample = epoch_data[start: end, ...]
+        if sample.shape[0] == 0 or sample.shape[2] == 0:
+            continue  # 빈 샘플 건너뛰기
         raw = mne.EpochsArray(sample, info=eeg_info)
 
         for band_name, band_range in bands.items():

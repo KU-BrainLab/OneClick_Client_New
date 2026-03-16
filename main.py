@@ -13,12 +13,12 @@ import pickle
 def get_args():
     ### Subject Informations ###
     parser = argparse.ArgumentParser()
-    parser.add_argument('--NAME', default='테스트', type=str)
-    parser.add_argument('--AGE', default=34, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2025-09-09 13:19', type=str)
-    parser.add_argument('--BIRTH', default='2004-01-17', type=str)
-    parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2025-09-09-1221.csv', type=str)
+    parser.add_argument('--NAME', default='TEST', type=str)
+    parser.add_argument('--AGE', default= 60, type=int)
+    parser.add_argument('--MEASUREMENT_DATE', default='2026-03-13-1816', type=str)
+    parser.add_argument('--BIRTH', default='1965-06-10', type=str)
+    parser.add_argument('--SEX', default='male', choices=['male', 'female'], type=str)
+    parser.add_argument('--FILE_NAME', default='2026-03-13-1816.csv', type=str)
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
@@ -96,13 +96,24 @@ if __name__ == '__main__':
     # save_path = r"C:\Users\tjd64\OneDrive\바탕 화면\Oneclick\data\clean"
 
     if args.DEBUG_MODE:
-        print("#####################################################")
-        print("####################  DEBUG MODE  ###################")
-        print("#####################################################")
+        print("###########################################################")
+        print("###########################################################")
+        print("###########################################################")
+        print("#######################  DEBUG MODE  ######################")
+        print("#####Last Update : 2026.03.15 created by Youngseok Kim#####")
+        print("###########################################################")
+        print("###########################################################")
+        print("###########################################################")
+
     else:
-        print("#####################################################")
-        print("####################  LIVE MODE  ####################")
-        print("#####################################################")
+        print("###########################################################")
+        print("###########################################################")
+        print("###########################################################")
+        print("#######################  LIVE MODE  #######################")
+        print("#####Last Update : 2026.03.15 created by Youngseok Kim#####")
+        print("###########################################################")
+        print("###########################################################")
+        print("###########################################################")
 
     # ECG    
     # 신호 이상시
@@ -112,7 +123,7 @@ if __name__ == '__main__':
         cleaned_data = ecg.save_filtered_data(save_path=save_path)        
         ext = ECGFeatureExtractor(data_path=os.path.join(save_path, file), save_path=save_path,
                                     sfreq=125, age=args.AGE, sex=args.SEX)
-        hrv_results = ext.extract()
+        hrv_results, trigger = ext.extract()
         hrv_payload = json.dumps(hrv_results, cls=NpEncoder)
 
         del cleaned_data, ext, hrv_results
@@ -120,8 +131,7 @@ if __name__ == '__main__':
         hrv_payload = json.dumps("", cls=NpEncoder)
 
     ## 신호 이상시
-    eeg_results = eeg_analysis(os.path.join(data_path, file))
-
+    eeg_results = eeg_analysis(os.path.join(data_path, file), trigger)
     eeg_payload = json.dumps({
         'psd': eeg_results['psd_result'],
         'sleep_staging': eeg_results['sleep_stage'],
@@ -157,7 +167,7 @@ if __name__ == '__main__':
         'sleep_n2_min': eeg_results['sleep_report']['sleep_min'][1],
         'sleep_n3_min': eeg_results['sleep_report']['sleep_min'][2],
         'sleep_nrem_min': eeg_results['sleep_report']['sleep_min'][3],
-        'sleep_rem_min': eeg_results['sleep_report']['sleep_min'][4]        
+        'sleep_rem_min': eeg_results['sleep_report']['sleep_min'][4]
     }, cls=NpEncoder)
 
 
@@ -174,6 +184,7 @@ if __name__ == '__main__':
                                             'sex': s_index.index(args.SEX),
                                             'hrv': hrv_payload,
                                             'eeg': eeg_payload,
-                                            'report': report_payload}),
+                                            'report': report_payload,
+                                            'trigger': trigger}),
                         headers=headers)
         print(oo)

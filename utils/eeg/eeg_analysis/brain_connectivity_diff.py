@@ -20,7 +20,7 @@ def center_crop(img, dim):
     return crop_img
 
 
-def get_diff_brain_connectivity(epoch_data, uuid, type):
+def get_diff_brain_connectivity(epoch_data, uuid, type, trigger):
 
     def connecitivy(sample, band_range, eeg_info, type):
         fc_method = type
@@ -50,9 +50,21 @@ def get_diff_brain_connectivity(epoch_data, uuid, type):
     files = {exp_name: {band_name: None for band_name in bands.keys()} for exp_name in exp_names}
 
     epochs = []
+
+
+
     for i in range(5):
-        start, end = i * step, (i+1) * step
+        if trigger is not None and len(trigger) >= 6:
+            start = trigger[i] * 2
+            end = trigger[i+1] * 2  # 1epoch per 30s
+        else:
+            step = sample_size // 5
+            start = i * step
+            end = (i + 1) * step
+
         sample = epoch_data[start: end, ...]
+        if sample.shape[0] == 0 or sample.shape[2] == 0:
+            continue  # 빈 샘플 건너뛰기
         epoch = mne.EpochsArray(sample, info=eeg_info)
         epochs.append(epoch)
 

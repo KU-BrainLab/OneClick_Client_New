@@ -28,7 +28,7 @@ def epoching(data, epoch_duration=30., artifact_rejection=False):
                                            reject_by_annotation=artifact_rejection)
     return epoched
 
-def main_analysis(path):
+def main_analysis(path, trigger):
     data = DataFilter.read_file(path)
     eeg_data = data[1:16, :] / 1e6
 
@@ -54,17 +54,19 @@ def main_analysis(path):
     epoch_data = epoching(data=filter_data)
     myuuid = uuid.uuid4()
 
+    #End experiment time
+    trigger.append(int((epoch_data.get_data().shape[0] * (epoch_data.get_data().shape[2] / 100)) / 60))
 
-    brain_topograhpy = get_psd_topography(epoch_data, myuuid)
-    brain_conn_coh = get_brain_connectivity(epoch_data, myuuid, 'coh')
-    brain_conn_plv = get_brain_connectivity(epoch_data, myuuid, 'plv')
+    brain_topograhpy = get_psd_topography(epoch_data, myuuid, trigger)
+    brain_conn_coh = get_brain_connectivity(epoch_data, myuuid, 'coh', trigger)
+    brain_conn_plv = get_brain_connectivity(epoch_data, myuuid, 'plv', trigger)
     brain_psd = get_psd_analysis(epoch_data)
     brain_fronto_limbic = get_fronto_limbic_analysis(filter_data, myuuid)
     brain_sleep_stage = get_sleep_staging(epoch_data, ch_list)
     brain_psd_diff = get_psd_diff_analysis(epoch_data, myuuid)
-    brain_conn_diff_coh = get_diff_brain_connectivity(epoch_data, myuuid, 'coh')
-    brain_conn_diff_plv = get_diff_brain_connectivity(epoch_data, myuuid, 'plv')
-    brain_faa = get_frontal_alpha_asymmetry(epoch_data, myuuid)
+    brain_conn_diff_coh = get_diff_brain_connectivity(epoch_data, myuuid, 'coh', trigger)
+    brain_conn_diff_plv = get_diff_brain_connectivity(epoch_data, myuuid, 'plv', trigger)
+    brain_faa = get_frontal_alpha_asymmetry(epoch_data, myuuid, trigger)
     
     brain_sleep = {key: brain_sleep_stage[key] for key in ['sleep_stage', 'sleep_stage_prob']}
     brain_report_summary = brain_sleep_stage['sleep_summary']

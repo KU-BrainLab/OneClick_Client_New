@@ -1,6 +1,7 @@
 import os
 import pyhrv
 import biosppy
+import mne
 
 import warnings
 import matplotlib.cbook
@@ -44,8 +45,10 @@ class ECGFeatureExtractor:
         self.sex= sex
 
         data = pd.read_csv(data_path)
+
         trigger = data.iloc[:, 1]
         filtered_trigger = np.where(trigger > 0)[0]
+        self.rows = data.shape[0]
         ecg = data.iloc[:, 0]
 
         self.filtered_trigger = filtered_trigger
@@ -60,6 +63,7 @@ class ECGFeatureExtractor:
 
     def extract(self):
         nni, rmssd = self.whole()
+
         baseline_hrv, baseline_psd = self.baseline()
         baseline_hrv.update({
             'psd': baseline_psd,
@@ -100,7 +104,8 @@ class ECGFeatureExtractor:
             'recovery2': recovery2_hrv
         }
 
-        return sample
+        self.filtered_trigger //= 7500
+        return sample, self.filtered_trigger.tolist()
 
     # baseline-stimulation1  부분만 feature extract 해서 저장
     def baseline(self):
@@ -138,17 +143,18 @@ class ECGFeatureExtractor:
         self.whole_nni = filtered_arr.tolist()
 
 
+        # sliding RMSSD
+        window_size = int(self.sfreq * 300)  # 5 min
+        step_size = int(self.sfreq * 10)  # 10 sec
 
-        start_idx, end_idx = 0, self.sfreq * 300
+        start_idx, end_idx = 0, window_size
         trigger_idx = 0
-        rmssd, lh_ratio, lf, hf, trigger_list = [], [], [], [], []
+        rmssd = []
+        trigger_list = []
 
-        while True:
-            ecg = self.ecg[start_idx:end_idx]
-            if len(ecg) < self.sfreq * 300:
-                trigger_list[-1] = trigger_idx
-                break
+        signal_len = len(self.ecg)  # or len(filtered_ecg) if same length
 
+        while end_idx <= signal_len:
             # trigger가 처음 들어간 시점 탐지
             if (trigger_idx < len(self.filtered_trigger)) and (self.filtered_trigger[trigger_idx] <= start_idx):
                 trigger_idx += 1
@@ -156,23 +162,62 @@ class ECGFeatureExtractor:
             else:
                 trigger_list.append(0)
 
-            df = self.feature_extract(ecg, whole=True)
-            rmssd.append(df['rmssd'])
+            print(start_idx, end_idx)
 
-            start_idx += self.sfreq * 10
-            end_idx += self.sfreq * 10
+            # pick already-detected rpeaks inside this window
+            left = np.searchsorted(rpeaks, start_idx, side='left')
+            right = np.searchsorted(rpeaks, end_idx, side='left')
+            rpeaks_win = rpeaks[left:right]
+
+            # RMSSD from window rpeaks
+            if len(rpeaks_win) >= 3:
+                nni_win = (np.diff(rpeaks_win) / self.sfreq) * 1000  # ms
+                nni_win = nni_win[(nni_win >= 400) & (nni_win <= 1500)]
+
+                if len(nni_win) >= 2:
+                    rmssd_val = np.sqrt(np.mean(np.diff(nni_win) ** 2))
+                else:
+                    rmssd_val = np.nan
+            else:
+                rmssd_val = np.nan
+
+            rmssd.append(rmssd_val)
+
+            start_idx += step_size
+            end_idx += step_size
+
+        # original code tried to overwrite last trigger entry
+        if len(trigger_list) > 0:
+            trigger_list[-1] = trigger_idx
 
         return self.whole_nni, rmssd
 
     def feature_extract(self, ecg, whole=False, phase=''):
-        t, _, rpeaks = biosppy.signals.ecg.ecg(ecg, show=False, sampling_rate=self.sfreq)[:3]
-        nni = tools.nn_intervals(t[rpeaks])
+        t, filtered_ecg, _ = biosppy.signals.ecg.ecg(ecg, show=False, sampling_rate=self.sfreq)[:3]
 
-        # nni = np.clip(nni, 400, 1200) # + np.random.randint(1,15, size=nni.shape)
+
+        # MNE 객체 생성
+        info = mne.create_info(ch_names=['ECG'], sfreq=self.sfreq, ch_types=['ecg'])
+        raw = mne.io.RawArray(filtered_ecg[np.newaxis, :], info)
+
+        # 1) Detect R-peaks (QRS)
+        ecg_events, _, __ = mne.preprocessing.find_ecg_events(
+            raw,
+            ch_name='ECG',  # or None to auto-pick an ECG channel
+            l_freq=None,  # you already filtered; else e.g. l_freq=5, h_freq=35
+            h_freq=None,
+            qrs_threshold='auto'
+        )
+
+        rpeaks = (ecg_events[:, 0])
+
+        nni = (np.diff(rpeaks) / self.sfreq) * 1000
+
+        #nni = np.clip(nni, 400, 1200) # + np.random.randint(1,15, size=nni.shape)
         nni = nni[(nni >= 400) & (nni <= 1500)]
 
         if whole is False:
-            params = ['sdnn', 'rmssd', 'sdsd', 'fft_ratio', 'pnn50']            
+            params = ['sdnn', 'rmssd', 'sdsd', 'fft_ratio', 'pnn50']
             fig = heart_rate_heatplot(nni=nni, age=int(self.age), gender=str(self.sex), show=False)
             fig[0].savefig(os.path.join(self.save_path, f'fig1_{phase}.png'))
             plt.close('all')
@@ -236,3 +281,4 @@ class ECGFeatureExtractor:
 
         else:
             return data
+

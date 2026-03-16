@@ -18,7 +18,7 @@ def center_crop(img, dim):
     crop_img = img[mid_y-ch2:mid_y+ch2, mid_x-cw2:mid_x+cw2]
     return crop_img
 
-def get_brain_connectivity(epoch_data, uuid, type):
+def get_brain_connectivity(epoch_data, uuid, type, trigger):
     epoch_data = copy.deepcopy(epoch_data)
     eeg_info = epoch_data.info
     sfreq = eeg_info['sfreq']
@@ -35,9 +35,22 @@ def get_brain_connectivity(epoch_data, uuid, type):
     elif(type == 'plv'):
         dir = 'connectivity2'
 
+
+    start_arr = [0, int(sample_size * 0.2) , int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9)] 
+    end_arr = [int(sample_size * 0.2), int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9), sample_size]        
+    
     for i in range(5):
-        start, end = i * step, (i+1) * step
+        if trigger is not None and len(trigger) >= 6:
+            start = trigger[i] * 2
+            end = trigger[i+1] * 2  # 1epoch per 30s
+        else:
+            step = sample_size // 5
+            start = i * step
+            end = (i + 1) * step
+
         sample = epoch_data[start: end, ...]
+        if sample.shape[0] == 0 or sample.shape[2] == 0:
+            continue  # 빈 샘플 건너뛰기
         raw = mne.EpochsArray(sample, info=eeg_info)
 
         for band_name, band_range in bands.items():   
