@@ -137,26 +137,8 @@ class ECGFeatureExtractor:
         return self.feature_extract(recovery2_ecg, phase='Recovery2')
 
     def whole(self):
-
-        t, filtered_ecg, _ = biosppy.signals.ecg.ecg(self.ecg, show=False, sampling_rate=self.sfreq)[:3]
-
-
-        # MNE 객체 생성
-        info = mne.create_info(ch_names=['ECG'], sfreq=self.sfreq, ch_types=['ecg'])
-        raw = mne.io.RawArray(filtered_ecg[np.newaxis, :], info)
-
-        # 1) Detect R-peaks (QRS)
-        ecg_events, _, __ = mne.preprocessing.find_ecg_events(
-            raw,
-            ch_name='ECG',  # or None to auto-pick an ECG channel
-            l_freq=None,  # you already filtered; else e.g. l_freq=5, h_freq=35
-            h_freq=None,
-            qrs_threshold='auto'
-        )
-
-        rpeaks = (ecg_events[:, 0])
-        nni = (np.diff(rpeaks) / self.sfreq) * 1000
-
+        t, _, rpeaks = biosppy.signals.ecg.ecg(self.ecg, show=False, sampling_rate=self.sfreq)[:3]
+        nni = tools.nn_intervals(t[rpeaks])
         filtered_arr = nni[(nni >= 400) & (nni <= 1500)]
         self.whole_nni = filtered_arr.tolist()
 
