@@ -54,10 +54,17 @@ def get_diff_brain_connectivity(epoch_data, uuid, type, trigger):
 
 
     for i in range(5):
-        start = trigger[i] * 2
-        end = trigger[i+1] * 2 # 1epoch per 30s
-        
+        if trigger is not None and len(trigger) >= 6:
+            start = trigger[i] * 2
+            end = trigger[i+1] * 2  # 1epoch per 30s
+        else:
+            step = sample_size // 5
+            start = i * step
+            end = (i + 1) * step
+
         sample = epoch_data[start: end, ...]
+        if sample.shape[0] == 0 or sample.shape[2] == 0:
+            continue  # 빈 샘플 건너뛰기
         epoch = mne.EpochsArray(sample, info=eeg_info)
         epochs.append(epoch)
 

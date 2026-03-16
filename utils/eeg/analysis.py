@@ -56,7 +56,6 @@ def main_analysis(path, trigger):
 
     #End experiment time
     trigger.append(int((epoch_data.get_data().shape[0] * (epoch_data.get_data().shape[2] / 100)) / 60))
-    print(trigger)
 
     brain_topograhpy = get_psd_topography(epoch_data, myuuid, trigger)
     brain_conn_coh = get_brain_connectivity(epoch_data, myuuid, 'coh', trigger)

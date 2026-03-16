@@ -233,7 +233,6 @@ def heart_rate_heatplot(nni=None,
 		# Create classifier counter (preparation for steps after the plot)
 		classifier_counter = {}
 		for key in data.keys():
-			print(key)
 			classifier_counter[key] = 0
 
 
