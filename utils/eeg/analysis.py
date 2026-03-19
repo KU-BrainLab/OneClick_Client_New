@@ -37,7 +37,7 @@ def main_analysis(path, trigger):
     eeg_info = mne.create_info(ch_names=ch_list, sfreq=sfreq, ch_types="eeg")
     data_ = mne.io.RawArray(eeg_data, info=eeg_info)
     data_.drop_channels(['O1', 'O2'])
-    filter_data = data_.copy().filter(l_freq=1, h_freq=60.)
+    filter_data = data_.copy().filter(l_freq=0.5, h_freq=60.)
 
     montage = mne.channels.make_standard_montage('standard_1020')
     filter_data.set_montage(montage)

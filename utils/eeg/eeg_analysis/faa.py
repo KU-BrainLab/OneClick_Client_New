@@ -18,19 +18,13 @@ def get_frontal_alpha_asymmetry(epoch_data, uuid, trigger):
         idx_band = np.logical_and(frequencies >= low, frequencies < high)
         bp = simpson(psd[:, idx_band], dx=frequencies[1] - frequencies[0])
 
-        if True:
-            sum_ = 0
-            for level, (l, h) in enumerate([(0.5, 4), (4, 8), (8, 13), (13, 30)]):
-                idx = np.logical_and(frequencies >= l, frequencies < h)
-                if level == 0:
-                    sum_ = simpson(psd[:, idx], dx=frequencies[1] - frequencies[0])
-                else:
-                    sum_ += simpson(psd[:, idx], dx=frequencies[1] - frequencies[0])
-            bp /= sum_
+        idx = np.logical_and(frequencies>=0.5, frequencies<40)
+        sum_ = simpson(psd[:, idx], dx=frequencies[1]-frequencies[0])
+        bp /= sum_
         return bp
 
     def get_faa_func(data_, ch_names, sfreq):
-        alpha_band = (8, 13)
+        alpha_band = (8, 13) # 사용 안 됨
         l_channels, r_channels = ['Fp1', 'F7', 'F3'], ['Fp2', 'F4', 'F8']
         l_indices, r_indices = [ch_names.index(ch) for ch in l_channels], [ch_names.index(ch) for ch in r_channels]
 
@@ -39,8 +33,8 @@ def get_frontal_alpha_asymmetry(epoch_data, uuid, trigger):
         segment_l, segment_r = data_[:, l_indices, :], data_[:, r_indices, :]
         total_l_alpha, total_r_alpha = [], []
         for sl, sr in zip(segment_l, segment_r):
-            l_alpha = get_psd_analysis_func(sl, sfreq, low=8, high=13)
-            r_alpha = get_psd_analysis_func(sr, sfreq, low=8, high=13)
+            l_alpha = get_psd_analysis_func(sl, sfreq, low=8, high=12)
+            r_alpha = get_psd_analysis_func(sr, sfreq, low=8, high=12)
             total_l_alpha.append(l_alpha)
             total_r_alpha.append(r_alpha)
 
