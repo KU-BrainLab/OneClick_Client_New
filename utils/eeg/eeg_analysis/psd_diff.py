@@ -10,7 +10,7 @@ def get_psd_diff_analysis(epoch_data, uuid):
     from sklearn.preprocessing import StandardScaler
 
     def psd(raw, band_range):
-        spectrum = raw.compute_psd(method='welch', fmin=0.5, fmax=50)
+        spectrum = raw.compute_psd(method='welch', fmin=0.5, fmax=40)
         psds, freqs = spectrum.get_data(return_freqs=True)
         psds = 10 * np.log10(psds)
         psds_mean = psds.mean(axis=0)
@@ -35,7 +35,7 @@ def get_psd_diff_analysis(epoch_data, uuid):
     sample_size = epoch_data.shape[0]
     step = sample_size // 5
     exp_names = ['diff1', 'diff2', 'diff3', 'diff4']
-    freq_bands = {'delta': (0.5, 4), 'theta': (4, 8), 'alpha': (8, 12), 'beta': (12, 30), 'gamma': (30, 49)}
+    freq_bands = {'delta': (0.5, 4), 'theta': (4, 8), 'alpha': (8, 12), 'beta': (12, 30), 'gamma': (30, 40), 'sigma': (12, 15)}
     files = {exp_name: {band_name: None for band_name in freq_bands.keys()} for exp_name in exp_names}
 
     epochs = []

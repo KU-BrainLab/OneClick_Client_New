@@ -46,7 +46,7 @@ def get_diff_brain_connectivity(epoch_data, uuid, type, trigger):
     sample_size = epoch_data.shape[0]
     step = sample_size // 5
     exp_names = ['diff1', 'diff2', 'diff3', 'diff4']
-    bands = {'delta': [0, 4], 'theta': [4, 8], 'alpha': [8, 13], 'beta': [13, 30], 'gamma': [30, 40]}
+    bands = {'delta': [0.5, 4], 'theta': [4, 8], 'alpha': [8, 12], 'beta': [12, 30], 'gamma': [30, 40], 'sigma': [12, 15]}
     files = {exp_name: {band_name: None for band_name in bands.keys()} for exp_name in exp_names}
 
     epochs = []

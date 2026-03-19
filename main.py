@@ -50,36 +50,42 @@ def eeg_content_bulk(payload, name):
         'topography_alpha': payload['topography'][name]['alpha'],
         'topography_beta': payload['topography'][name]['beta'],
         'topography_gamma': payload['topography'][name]['gamma'],
+        'topography_sigma': payload['topography'][name]['sigma'],
         'connectivity_delta': payload['connectivity'][name]['delta'],
         'connectivity_theta': payload['connectivity'][name]['theta'],
         'connectivity_alpha': payload['connectivity'][name]['alpha'],
         'connectivity_beta': payload['connectivity'][name]['beta'],
         'connectivity_gamma': payload['connectivity'][name]['gamma'],
+        'connectivity_sigma': payload['connectivity'][name]['sigma'],
         'connectivity2_delta': payload['connectivity2'][name]['delta'],
         'connectivity2_theta': payload['connectivity2'][name]['theta'],
         'connectivity2_alpha': payload['connectivity2'][name]['alpha'],
         'connectivity2_beta': payload['connectivity2'][name]['beta'],
         'connectivity2_gamma': payload['connectivity2'][name]['gamma'],
+        'connectivity2_sigma': payload['connectivity2'][name]['sigma']
     }
 
 
-def eeg_diff_content_bulk(payload, name):
+def eeg_diff_content_bulk(payload, name): # sigma가 추가되어야 함
     return {
         'topography_delta': payload['topography_diff'][name]['delta'],
         'topography_theta': payload['topography_diff'][name]['theta'],
         'topography_alpha': payload['topography_diff'][name]['alpha'],
         'topography_beta': payload['topography_diff'][name]['beta'],
         'topography_gamma': payload['topography_diff'][name]['gamma'],
+        'topography_sigma': payload['topography_diff'][name]['sigma'],
         'connectivity_delta': payload['connectivity_diff'][name]['delta'],
         'connectivity_theta': payload['connectivity_diff'][name]['theta'],
         'connectivity_alpha': payload['connectivity_diff'][name]['alpha'],
         'connectivity_beta': payload['connectivity_diff'][name]['beta'],
         'connectivity_gamma': payload['connectivity_diff'][name]['gamma'],
+        'connectivity_sigma': payload['connectivity_diff'][name]['sigma'],
         'connectivity2_delta': payload['connectivity2_diff'][name]['delta'],
         'connectivity2_theta': payload['connectivity2_diff'][name]['theta'],
         'connectivity2_alpha': payload['connectivity2_diff'][name]['alpha'],
         'connectivity2_beta': payload['connectivity2_diff'][name]['beta'],
         'connectivity2_gamma': payload['connectivity2_diff'][name]['gamma'],
+        'connectivity2_sigma': payload['connectivity2_diff'][name]['sigma']
     }
 
 
