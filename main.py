@@ -15,10 +15,10 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--NAME', default='TEST', type=str)
     parser.add_argument('--AGE', default= 60, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2026-03-13-1816', type=str)
+    parser.add_argument('--MEASUREMENT_DATE', default='2026-03-10-1509', type=str)
     parser.add_argument('--BIRTH', default='1965-06-10', type=str)
     parser.add_argument('--SEX', default='male', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2026-03-13-1816.csv', type=str)
+    parser.add_argument('--FILE_NAME', default='2026-03-10-1509.csv', type=str)
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
@@ -66,27 +66,8 @@ def eeg_content_bulk(payload, name):
     }
 
 
-def eeg_diff_content_bulk(payload, name): # sigma가 추가되어야 함
-    return {
-        'topography_delta': payload['topography_diff'][name]['delta'],
-        'topography_theta': payload['topography_diff'][name]['theta'],
-        'topography_alpha': payload['topography_diff'][name]['alpha'],
-        'topography_beta': payload['topography_diff'][name]['beta'],
-        'topography_gamma': payload['topography_diff'][name]['gamma'],
-        'topography_sigma': payload['topography_diff'][name]['sigma'],
-        'connectivity_delta': payload['connectivity_diff'][name]['delta'],
-        'connectivity_theta': payload['connectivity_diff'][name]['theta'],
-        'connectivity_alpha': payload['connectivity_diff'][name]['alpha'],
-        'connectivity_beta': payload['connectivity_diff'][name]['beta'],
-        'connectivity_gamma': payload['connectivity_diff'][name]['gamma'],
-        'connectivity_sigma': payload['connectivity_diff'][name]['sigma'],
-        'connectivity2_delta': payload['connectivity2_diff'][name]['delta'],
-        'connectivity2_theta': payload['connectivity2_diff'][name]['theta'],
-        'connectivity2_alpha': payload['connectivity2_diff'][name]['alpha'],
-        'connectivity2_beta': payload['connectivity2_diff'][name]['beta'],
-        'connectivity2_gamma': payload['connectivity2_diff'][name]['gamma'],
-        'connectivity2_sigma': payload['connectivity2_diff'][name]['sigma']
-    }
+def eeg_diff_content_bulk(payload, name):
+    return payload[name]
 
 
 if __name__ == '__main__':
@@ -151,7 +132,8 @@ if __name__ == '__main__':
         'diff2': eeg_diff_content_bulk(eeg_results, 'diff2'),
         'diff3': eeg_diff_content_bulk(eeg_results, 'diff3'),
         'diff4': eeg_diff_content_bulk(eeg_results, 'diff4'),
-        'faa' : eeg_results['faa']
+        'faa' : eeg_results['faa'],
+        'psd_spectrogram': eeg_results['psd_spectrogram']
     }, cls=NpEncoder)
 
     report_payload = json.dumps({
