@@ -26,7 +26,8 @@ def get_fronto_limbic_analysis(epoch_data, uuid):
         'theta': (4, 8),
         'alpha': (8, 12),
         'beta': (12, 30),
-        'gamma': (30, 49)
+        'gamma': (30, 40),
+        'sigma': (12, 15)
     }
 
     epoch_data = copy.deepcopy(epoch_data)
@@ -35,7 +36,7 @@ def get_fronto_limbic_analysis(epoch_data, uuid):
         filtered_data = copy.deepcopy(epoch_data)
         filtered_data = filtered_data.load_data().filter(l_freq=band_freqs[0], h_freq=band_freqs[1]).get_data()
         montage = mne.channels.make_standard_montage('standard_1020')
-        info = mne.create_info(wanted_ch_list, sfreq=125, ch_types='eeg')
+        info = mne.create_info(wanted_ch_list, sfreq=epoch_data.info['sfreq'], ch_types='eeg')
         info.set_montage(montage)
 
         matrix = compute_plv(filtered_data)
@@ -56,7 +57,7 @@ def get_fronto_limbic_analysis(epoch_data, uuid):
 
         for i in range(len(wanted_ch_list)):
             for j in range(i + 1, len(wanted_ch_list)):
-                weight = matrix[i, j]
+                weight = matrix[wanted_ch_indices[i], wanted_ch_indices[j]]
                 G.add_edge(wanted_ch_list[i], wanted_ch_list[j], weight=weight)
 
         edges = G.edges(data=True)
