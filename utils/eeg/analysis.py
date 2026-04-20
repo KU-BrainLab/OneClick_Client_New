@@ -23,7 +23,6 @@ from .eeg_analysis.brain_delta_power_topo import get_brain_delta_power_topo
 from .eeg_analysis.brain_delta_fc import get_brain_delta_connectivity
 ###############################################################
 
-mpl.use('TkAgg')
 mpl.rcParams['figure.constrained_layout.use'] = True
 
 
