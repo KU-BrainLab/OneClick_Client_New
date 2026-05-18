@@ -62,6 +62,7 @@ class ECGFeatureExtractor:
         return im_b64
 
     def extract(self):
+        n_phases = len(self.filtered_trigger)
         nni, rmssd = self.whole()
 
         baseline_hrv, baseline_psd = self.baseline()
@@ -82,18 +83,23 @@ class ECGFeatureExtractor:
             'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Recovery1.png')),
             'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Recovery1.png')),
         })
-        stimulation2_hrv, stimulation2_psd = self.stimulation2()
-        stimulation2_hrv.update({
-            'psd': stimulation2_psd,
-            'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Stimulation2.png')),
-            'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Stimulation2.png')),
-        })
-        recovery2_hrv, recovery2_psd = self.recovery2()
-        recovery2_hrv.update({
-            'psd': recovery2_psd,
-            'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Recovery2.png')),
-            'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Recovery2.png')),
-        })
+
+        if n_phases >= 5:
+            stimulation2_hrv, stimulation2_psd = self.stimulation2()
+            stimulation2_hrv.update({
+                'psd': stimulation2_psd,
+                'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Stimulation2.png')),
+                'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Stimulation2.png')),
+            })
+            recovery2_hrv, recovery2_psd = self.recovery2()
+            recovery2_hrv.update({
+                'psd': recovery2_psd,
+                'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Recovery2.png')),
+                'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Recovery2.png')),
+            })
+        else:
+            stimulation2_hrv = {}
+            recovery2_hrv = {}
 
         sample = {
             'nni': nni, 'rmssd': rmssd,
@@ -122,7 +128,8 @@ class ECGFeatureExtractor:
     # recovery1-stimulation2 부분만 feature extract 해서 저장
     def recovery1(self):
         print('recovery1')
-        recovery1_ecg = self.ecg[self.filtered_trigger[2]:self.filtered_trigger[3]]
+        end_idx = self.filtered_trigger[3] if len(self.filtered_trigger) > 3 else len(self.ecg)
+        recovery1_ecg = self.ecg[self.filtered_trigger[2]:end_idx]
         return self.feature_extract(recovery1_ecg, phase='Recovery1')
 
     # stimulation2-recovery2  부분만 feature extract 해서 저장

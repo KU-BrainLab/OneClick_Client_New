@@ -88,8 +88,10 @@ def get_frontal_alpha_asymmetry(epoch_data, uuid, trigger):
     files = []
     eeg_info = epoch_data.info
     epoch_data = epoch_data.get_data()
-    sample_size = epoch_data.shape[0]
+    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 5
     for i in range(5):
+        if i >= n_phases:
+            continue  # 존재하지 않는 phase → files_dict 해당 키는 None으로 유지
         start = trigger[i] * 2
         end = trigger[i+1] * 2 # 1epoch per 30s
 

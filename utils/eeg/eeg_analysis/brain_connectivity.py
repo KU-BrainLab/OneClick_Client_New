@@ -30,7 +30,7 @@ def get_brain_connectivity(epoch_data, uuid, type, trigger):
     files = {exp_name: {band_name: None for band_name in bands.keys()} for exp_name in exp_names}
 
     fc_method = type
-    if(type == 'coh'):
+    if(type == 'wpli'):
         dir = 'connectivity'
     elif(type == 'plv'):
         dir = 'connectivity2'
@@ -39,23 +39,23 @@ def get_brain_connectivity(epoch_data, uuid, type, trigger):
     start_arr = [0, int(sample_size * 0.2) , int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9)] 
     end_arr = [int(sample_size * 0.2), int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9), sample_size]        
     
+    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 5
     for i in range(5):
-        if trigger is not None and len(trigger) >= 6:
-            start = trigger[i] * 2
-            end = trigger[i+1] * 2  # 1epoch per 30s
-        else:
-            step = sample_size // 5
-            start = i * step
-            end = (i + 1) * step
+        if i >= n_phases:
+            for band_name in bands:
+                files[exp_names[i]][band_name] = ''
+            continue
+        start = trigger[i] * 2
+        end = trigger[i+1] * 2  # 1epoch per 30s
 
         sample = epoch_data[start: end, ...]
         if sample.shape[0] == 0 or sample.shape[2] == 0:
             continue  # 빈 샘플 건너뛰기
         raw = mne.EpochsArray(sample, info=eeg_info)
 
-        for band_name, band_range in bands.items():   
+        for band_name, band_range in bands.items():
 
-            start, end = i * step, (i+1) * step
+            start, end = trigger[i] * 2, trigger[i+1] * 2
             sample = epoch_data[start: end, ...]
             raw = mne.EpochsArray(sample, info=eeg_info)
             con = spectral_connectivity_epochs(data=raw, names=raw.info['ch_names'], sfreq=sfreq,

@@ -13,12 +13,12 @@ import pickle
 def get_args():
     ### Subject Informations ###
     parser = argparse.ArgumentParser()
-    parser.add_argument('--NAME', default='TEST', type=str)
-    parser.add_argument('--AGE', default= 60, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2026-03-10-1509', type=str)
-    parser.add_argument('--BIRTH', default='1965-06-10', type=str)
-    parser.add_argument('--SEX', default='male', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2026-03-10-1509.csv', type=str)
+    parser.add_argument('--NAME', default='이은율', type=str)
+    parser.add_argument('--AGE', default= 39, type=int)
+    parser.add_argument('--MEASUREMENT_DATE', default='2026-04-30 15:18', type=str)
+    parser.add_argument('--BIRTH', default='1987-10-29', type=str)
+    parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
+    parser.add_argument('--FILE_NAME', default='2026-04-30-1518.csv', type=str)
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
@@ -104,6 +104,7 @@ if __name__ == '__main__':
 
     # ECG    
     # 신호 이상시
+
     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
 
     if(ecg.isValid):
@@ -116,6 +117,8 @@ if __name__ == '__main__':
         del cleaned_data, ext, hrv_results
     else:
         hrv_payload = json.dumps("", cls=NpEncoder)
+
+    #trigger = [0, 10, 25, 30, 45]
 
     ## 신호 이상시
     eeg_results = eeg_analysis(os.path.join(data_path, file), trigger)
@@ -163,6 +166,11 @@ if __name__ == '__main__':
     ip = '180.83.245.145:8000'
     s_index = ['male', 'female']
 
+
+    empty = {}
+    ttttt = json.dumps(empty)
+
+    #if you want send data without specific datas: use "\"\"",
     if not args.DEBUG_MODE:
         oo = requests.post('http://{}/api/v1/exp/'.format(ip),
                         data=json.dumps({'name': args.NAME,

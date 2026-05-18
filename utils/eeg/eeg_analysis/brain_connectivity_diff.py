@@ -34,7 +34,7 @@ def get_diff_brain_connectivity(epoch_data, uuid, type, trigger):
         conmat = con.get_data(output="dense")[:, :, 0]
         return conmat
 
-    if(type == 'coh'):
+    if(type == 'wpli'):
         dir = 'connectivity_diff'
     elif(type == 'plv'):
         dir = 'connectivity_diff2'
@@ -53,14 +53,10 @@ def get_diff_brain_connectivity(epoch_data, uuid, type, trigger):
 
 
 
-    for i in range(5):
-        if trigger is not None and len(trigger) >= 6:
-            start = trigger[i] * 2
-            end = trigger[i+1] * 2  # 1epoch per 30s
-        else:
-            step = sample_size // 5
-            start = i * step
-            end = (i + 1) * step
+    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 5
+    for i in range(n_phases):
+        start = trigger[i] * 2
+        end = trigger[i+1] * 2  # 1epoch per 30s
 
         sample = epoch_data[start: end, ...]
         if sample.shape[0] == 0 or sample.shape[2] == 0:
@@ -96,4 +92,10 @@ def get_diff_brain_connectivity(epoch_data, uuid, type, trigger):
                 im_bytes = f.read()
             im_b64 = base64.b64encode(im_bytes).decode("utf8")
             files[exp_names[diff_i]][band_name] = im_b64
+
+    # 존재하지 않는 phase의 diff는 빈 문자열로 채움
+    for diff_i in range(max(len(epochs) - 1, 0), len(exp_names)):
+        for band_name in bands:
+            files[exp_names[diff_i]][band_name] = ''
+
     return files

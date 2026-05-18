@@ -63,13 +63,13 @@ def main_analysis(path, trigger):
 
 
     brain_topograhpy = get_psd_topography(epoch_data, myuuid, trigger)
-    brain_conn_coh = get_brain_connectivity(epoch_data, myuuid, 'coh', trigger)
+    brain_conn_coh = get_brain_connectivity(epoch_data, myuuid, 'wpli', trigger)
     brain_conn_plv = get_brain_connectivity(epoch_data, myuuid, 'plv', trigger)
     brain_psd = get_psd_analysis(epoch_data)
     brain_fronto_limbic = get_fronto_limbic_analysis(filter_data, myuuid)
     brain_sleep_stage = get_sleep_staging(epoch_data, ch_list)
-    brain_psd_diff = get_psd_diff_analysis(epoch_data, myuuid)
-    brain_conn_diff_coh = get_diff_brain_connectivity(epoch_data, myuuid, 'coh', trigger)
+    brain_psd_diff = get_psd_diff_analysis(epoch_data, myuuid, trigger)
+    brain_conn_diff_coh = get_diff_brain_connectivity(epoch_data, myuuid, 'wpli', trigger)
     brain_conn_diff_plv = get_diff_brain_connectivity(epoch_data, myuuid, 'plv', trigger)
     brain_faa = get_frontal_alpha_asymmetry(epoch_data, myuuid, trigger)
     brain_spectrogram = get_brain_spectrogram(filter_data, myuuid, trigger)
@@ -93,8 +93,12 @@ def main_analysis(path, trigger):
     }
     _SS_MAP = {'W': 'wake', 'N1': 'n1', 'N2': 'n2', 'N3': 'n3', 'REM': 'rem'}
 
+    n_phases = len(trigger) - 1  # trigger에 end가 append된 후 기준
     diffs = []
     for i, (targ, ref) in enumerate(_PHASE_PAIRS):
+        if i >= n_phases - 1:
+            diffs.append({})
+            continue
         key = _DIFF_KEYS[i]
         pair_fn = f'{targ.replace(" ", "_")}_vs_{ref.replace(" ", "_")}'
         d = {}

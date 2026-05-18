@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import os
 import base64
 
-def get_psd_diff_analysis(epoch_data, uuid):
+def get_psd_diff_analysis(epoch_data, uuid, trigger=None):
     from sklearn.preprocessing import StandardScaler
 
     def psd(raw, band_range):
@@ -32,16 +32,16 @@ def get_psd_diff_analysis(epoch_data, uuid):
     epoch_data = copy.deepcopy(epoch_data)
     info = epoch_data.info
     epoch_data = epoch_data.get_data()
-    sample_size = epoch_data.shape[0]
-    step = sample_size // 5
     exp_names = ['diff1', 'diff2', 'diff3', 'diff4']
     freq_bands = {'delta': (0.5, 4), 'theta': (4, 8), 'alpha': (8, 12), 'beta': (12, 30), 'gamma': (30, 40), 'sigma': (12, 15)}
     files = {exp_name: {band_name: None for band_name in freq_bands.keys()} for exp_name in exp_names}
 
+    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 5
     epochs = []
-    for i in range(5):
-        start, end = i * step, (i+1) * step
-        sample = epoch_data[start: end, ...]
+    for i in range(n_phases):
+        start = trigger[i] * 2
+        end = trigger[i+1] * 2
+        sample = epoch_data[start:end, ...]
         epoch = mne.EpochsArray(sample, info=info)
         epochs.append(epoch)
 
@@ -63,4 +63,10 @@ def get_psd_diff_analysis(epoch_data, uuid):
             files[exp_names[diff_i]][band_name] = im_b64
             plt.close('all')
             plt.clf()
+
+    # 존재하지 않는 phase의 diff는 빈 문자열로 채움
+    for diff_i in range(max(len(epochs) - 1, 0), len(exp_names)):
+        for band_name in freq_bands:
+            files[exp_names[diff_i]][band_name] = ''
+
     return files

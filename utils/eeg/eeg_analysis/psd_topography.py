@@ -20,14 +20,14 @@ def get_psd_topography(epoch_data, uuid, trigger):
 
 
     # 1. [Power Spectrum Density]
+    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 5
     for i in range(5):
-        if trigger is not None and len(trigger) >= 6:
-            start = trigger[i] * 2
-            end = trigger[i+1] * 2  # 1epoch per 30s
-        else:
-            step = sample_size // 5
-            start = i * step
-            end = (i + 1) * step
+        if i >= n_phases:
+            for band_name in bands:
+                files[exp_names[i]][band_name] = ''
+            continue
+        start = trigger[i] * 2
+        end = trigger[i+1] * 2  # 1epoch per 30s
 
         sample = epoch_data[start: end, ...]
         if sample.shape[0] == 0 or sample.shape[2] == 0:

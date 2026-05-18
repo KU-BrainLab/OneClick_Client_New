@@ -21,7 +21,7 @@ class CleanUpECG:
 
         # 데이터 구조 = EEG (0-15열), ECG (16열), Trigger (-1열)
         data = DataFilter.read_file(data_path)
-
+    
         # Trigger = {0: 기본, 1이상: 사용자 지정 trigger 신호}
         trigger = data[-1, :]
         filtered_trigger = np.where(trigger > 0)[0]  # 사용자 지정 trigger 신호 추출
@@ -48,6 +48,8 @@ class CleanUpECG:
             print(f'Total experiments time = {experiment_time_m} minutes')
 
             check_trigger = filtered_trigger.tolist() + [len(ecg)]
+
+            print(check_trigger)
             protocol, exp_time = [], []
             for idx in range(len(check_trigger) - 1):
                 duration = (check_trigger[idx + 1] - check_trigger[idx]) // 7500

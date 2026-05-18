@@ -189,12 +189,11 @@ def get_brain_delta_connectivity(epoch_data, uuid, trigger, sleep_labels_int):
 
     os.makedirs(os.path.join('image', 'delta_connectivity'), exist_ok=True)
 
+    stage_names = ['baseline', 'stimulation 1', 'recovery 1', 'stimulation 2', 'recovery 2']
+    n_phases = len(trigger) - 1
     boundaries = {}
-    boundaries['baseline']       = (trigger[0], trigger[1])
-    boundaries['stimulation 1']  = (trigger[1], trigger[2])
-    boundaries['recovery 1']     = (trigger[2], trigger[3])
-    boundaries['stimulation 2']  = (trigger[3], trigger[4])
-    boundaries['recovery 2']     = (trigger[4], trigger[5])
+    for i in range(n_phases):
+        boundaries[stage_names[i]] = (trigger[i], trigger[i+1])
     df = assign_stage_metadata(epoch_data, boundaries)
     df['sleep_stage'] = [SLEEP_STAGE_NAMES[l] for l in sleep_labels_int]
 
