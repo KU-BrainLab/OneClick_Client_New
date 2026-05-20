@@ -107,14 +107,18 @@ if __name__ == '__main__':
 
     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
 
+    trigger = [0, 10, 25, 30, 45]
     if(ecg.isValid):
-        cleaned_data = ecg.save_filtered_data(save_path=save_path)        
-        ext = ECGFeatureExtractor(data_path=os.path.join(save_path, file), save_path=save_path,
-                                    sfreq=125, age=args.AGE, sex=args.SEX)
-        hrv_results, trigger = ext.extract()
-        hrv_payload = json.dumps(hrv_results, cls=NpEncoder)
-
-        del cleaned_data, ext, hrv_results
+        try:
+            cleaned_data = ecg.save_filtered_data(save_path=save_path)
+            ext = ECGFeatureExtractor(data_path=os.path.join(save_path, file), save_path=save_path,
+                                        sfreq=125, age=args.AGE, sex=args.SEX)
+            hrv_results, trigger = ext.extract()
+            hrv_payload = json.dumps(hrv_results, cls=NpEncoder)
+            del cleaned_data, ext, hrv_results
+        except Exception as e:
+            print(f"[ECG] extract() 에러 발생, HRV 스킵: {e}")
+            hrv_payload = json.dumps("", cls=NpEncoder)
     else:
         hrv_payload = json.dumps("", cls=NpEncoder)
 
