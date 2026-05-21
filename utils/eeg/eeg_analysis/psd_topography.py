@@ -20,7 +20,7 @@ def get_psd_topography(epoch_data, uuid, trigger):
 
 
     # 1. [Power Spectrum Density]
-    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 5
+    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 1
     for i in range(5):
         if i >= n_phases:
             for band_name in bands:

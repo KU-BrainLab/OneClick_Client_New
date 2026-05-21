@@ -53,7 +53,7 @@ def get_diff_brain_connectivity(epoch_data, uuid, type, trigger):
 
 
 
-    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 5
+    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 1
     for i in range(n_phases):
         start = trigger[i] * 2
         end = trigger[i+1] * 2  # 1epoch per 30s

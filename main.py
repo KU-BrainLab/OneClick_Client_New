@@ -107,7 +107,7 @@ if __name__ == '__main__':
 
     ecg = CleanUpECG(data_path=os.path.join(data_path, file))
 
-    trigger = [0, 10, 25, 30, 45]
+    trigger = []
     if(ecg.isValid):
         try:
             cleaned_data = ecg.save_filtered_data(save_path=save_path)

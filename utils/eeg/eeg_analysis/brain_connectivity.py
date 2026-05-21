@@ -39,7 +39,7 @@ def get_brain_connectivity(epoch_data, uuid, type, trigger):
     start_arr = [0, int(sample_size * 0.2) , int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9)] 
     end_arr = [int(sample_size * 0.2), int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9), sample_size]        
     
-    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 5
+    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 1
     for i in range(5):
         if i >= n_phases:
             for band_name in bands:

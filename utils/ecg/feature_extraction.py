@@ -71,18 +71,23 @@ class ECGFeatureExtractor:
             'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Baseline.png')),
             'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Baseline.png')),
         })
-        stimulation1_hrv, stimulation1_psd = self.stimulation1()
-        stimulation1_hrv.update({
-            'psd': stimulation1_psd,
-            'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Stimulation1.png')),
-            'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Stimulation1.png')),
-        })
-        recovery1_hrv, recovery1_psd = self.recovery1()
-        recovery1_hrv.update({
-            'psd': recovery1_psd,
-            'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Recovery1.png')),
-            'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Recovery1.png')),
-        })
+
+        if n_phases >= 3:
+            stimulation1_hrv, stimulation1_psd = self.stimulation1()
+            stimulation1_hrv.update({
+                'psd': stimulation1_psd,
+                'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Stimulation1.png')),
+                'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Stimulation1.png')),
+            })
+            recovery1_hrv, recovery1_psd = self.recovery1()
+            recovery1_hrv.update({
+                'psd': recovery1_psd,
+                'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Recovery1.png')),
+                'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Recovery1.png')),
+            })
+        else:
+            stimulation1_hrv = {}
+            recovery1_hrv = {}
 
         if n_phases >= 5:
             stimulation2_hrv, stimulation2_psd = self.stimulation2()
@@ -116,7 +121,8 @@ class ECGFeatureExtractor:
     # baseline-stimulation1  부분만 feature extract 해서 저장
     def baseline(self):
         print('baseline')
-        baseline_ecg = self.ecg[:self.filtered_trigger[1]]
+        end_idx = self.filtered_trigger[1] if len(self.filtered_trigger) > 1 else len(self.ecg)
+        baseline_ecg = self.ecg[:end_idx]
         return self.feature_extract(baseline_ecg, phase='Baseline')
 
     # stimulation1-recovery1 부분만 feature extract 해서 저장

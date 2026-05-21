@@ -61,6 +61,10 @@ def main_analysis(path, trigger):
     #End experiment time
     trigger.append(int((epoch_data.get_data().shape[0] * (epoch_data.get_data().shape[2] / 100)) / 60))
 
+    # ECG 실패 등으로 phase 마커가 없으면 전체 구간을 baseline으로 처리 (1-phase)
+    if len(trigger) == 1:
+        trigger.insert(0, 0)
+
 
     brain_topograhpy = get_psd_topography(epoch_data, myuuid, trigger)
     brain_conn_coh = get_brain_connectivity(epoch_data, myuuid, 'wpli', trigger)

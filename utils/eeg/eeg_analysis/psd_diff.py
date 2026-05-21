@@ -36,7 +36,7 @@ def get_psd_diff_analysis(epoch_data, uuid, trigger=None):
     freq_bands = {'delta': (0.5, 4), 'theta': (4, 8), 'alpha': (8, 12), 'beta': (12, 30), 'gamma': (30, 40), 'sigma': (12, 15)}
     files = {exp_name: {band_name: None for band_name in freq_bands.keys()} for exp_name in exp_names}
 
-    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 5
+    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 1
     epochs = []
     for i in range(n_phases):
         start = trigger[i] * 2
