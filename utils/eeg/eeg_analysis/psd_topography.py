@@ -41,7 +41,7 @@ def get_psd_topography(epoch_data, uuid, trigger):
                 fmax=band_range[1]
             )
             psds, freqs = spectrum.get_data(return_freqs=True)
-            psds = 10 * np.log10(psds)
+            psds = 10 * np.log10(psds + 1e-30)   # zero 스펙트럼 → -inf 방지
             psds_mean = psds.mean(axis=0)
 
             freq_res = freqs[1] - freqs[0]
@@ -51,6 +51,7 @@ def get_psd_topography(epoch_data, uuid, trigger):
                 bp = simpson(psds_mean_sample[idx_band], dx=freq_res)
                 total_power.append(bp)
             total_power = np.array(total_power)
+            total_power = np.nan_to_num(total_power, nan=0.0, posinf=0.0, neginf=0.0)
             scaler = StandardScaler()
             total_power = scaler.fit_transform(total_power.reshape(-1, 1))
             total_power = total_power.reshape(-1)

@@ -9,6 +9,20 @@ import base64
 def get_psd_diff_analysis(epoch_data, uuid, trigger=None):
     from sklearn.preprocessing import StandardScaler
 
+    def rel_power_mean(epoch_obj, band_range):
+        """채널 평균 상대 파워 비율 (0~1). psd.py의 get_related_power와 동일한 방식."""
+        spectrum   = epoch_obj.compute_psd(method='welch', fmin=0.5, fmax=40)
+        psds, freqs = spectrum.average().get_data(return_freqs=True)
+        psds        = 10 * np.log10(psds)
+        psds       += np.abs(np.min(psds))
+        psds_mean   = psds.mean(axis=0)
+        freq_res    = freqs[1] - freqs[0]
+        full_band   = (freqs >= 0.5) & (freqs <= 40)
+        idx_band    = (freqs >= band_range[0]) & (freqs <= band_range[1])
+        total       = simpson(psds_mean[full_band], dx=freq_res)
+        band_p      = simpson(psds_mean[idx_band],  dx=freq_res)
+        return float(band_p / (total + 1e-30))
+
     def psd(raw, band_range):
         spectrum = raw.compute_psd(method='welch', fmin=0.5, fmax=40)
         psds, freqs = spectrum.get_data(return_freqs=True)
@@ -42,6 +56,8 @@ def get_psd_diff_analysis(epoch_data, uuid, trigger=None):
         start = trigger[i] * 2
         end = trigger[i+1] * 2
         sample = epoch_data[start:end, ...]
+        if sample.shape[0] == 0:
+            continue
         epoch = mne.EpochsArray(sample, info=info)
         epochs.append(epoch)
 
@@ -68,5 +84,37 @@ def get_psd_diff_analysis(epoch_data, uuid, trigger=None):
     for diff_i in range(max(len(epochs) - 1, 0), len(exp_names)):
         for band_name in freq_bands:
             files[exp_names[diff_i]][band_name] = ''
+
+    # ── PSD 정량화: 채널 평균 band power 차이 수치 ──
+    quant = {exp_name: {} for exp_name in exp_names}
+    for diff_i, (i_epoch, j_epoch) in enumerate(zip(epochs[:-1], epochs[1:])):
+        print(f'\n[PSD Quantification — {exp_names[diff_i]}]')
+        print(f"  {'Band':<8}  {'Before':>10}  {'After':>10}  {'Diff':>10}  {'Change':>8}")
+        print(f"  {'-'*50}")
+        for band_name, bands in freq_bands.items():
+            before = float(psd(i_epoch, bands).mean())
+            after  = float(psd(j_epoch, bands).mean())
+            diff   = after - before
+            pct    = (diff / (abs(before) + 1e-10)) * 100
+            marker = '▲' if diff > 0 else '▽'
+            print(f"  {band_name:<8}  {before:>10.4f}  {after:>10.4f}  {diff:>+10.4f}  {pct:>+7.1f}% {marker}")
+            quant[exp_names[diff_i]][band_name] = {
+                'before': before,
+                'after':  after,
+                'diff':   diff,
+                'pct':    pct,
+            }
+
+    files['quantification'] = quant
+
+    # ── 대역별 상대 파워 비율 데이터 저장 (출력은 analysis.py 끝에서 일괄 처리) ──
+    phase_names = ['baseline', 'stimulation', 'recovery', 'stimulation2', 'recovery2']
+    band_ratios = {}
+    for pi, ep in enumerate(epochs):
+        pname = phase_names[pi] if pi < len(phase_names) else f'phase{pi}'
+        band_ratios[pname] = {}
+        for band_name, bands in freq_bands.items():
+            band_ratios[pname][band_name] = rel_power_mean(ep, bands)
+    files['band_ratios'] = band_ratios
 
     return files

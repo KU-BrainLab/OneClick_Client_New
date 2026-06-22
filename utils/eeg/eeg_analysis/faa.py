@@ -96,6 +96,8 @@ def get_frontal_alpha_asymmetry(epoch_data, uuid, trigger):
         end = trigger[i+1] * 2 # 1epoch per 30s
 
         sample = epoch_data[start: end, ...]
+        if sample.shape[0] == 0:
+            continue
         raw = mne.EpochsArray(sample, info=eeg_info)
         faa = get_faa_func(raw, ch_names=eeg_info['ch_names'], sfreq=eeg_info['sfreq'])
         plot_faa_on_brain_fuc(faa, psd_names[i])
