@@ -13,10 +13,10 @@ if str(_EEG_DIR) not in sys.path:
 
 from synthsleepnet.loader import load_classifier
 
-# 서버 체크포인트 경로 (X: 드라이브 마운트 필요)
-_SERVER_ROOT = Path(r'X:\Workspace\Chlee\MultiModal_for_Sleep\ckpt\multimodal\EEG2')
-_BACKBONE_CKPT  = _SERVER_ROOT / 'model' / 'best_model.pth'
-_LINEAR_CKPT    = _SERVER_ROOT / 'linear_prob' / 'sleep_stage' / 'best_model.pth'
+_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+_CKPT_ROOT = _PROJECT_ROOT / 'synthsleepnet' / 'ckpt' / 'multimodal' / 'EEG2'
+_BACKBONE_CKPT = _CKPT_ROOT / 'model' / 'best_model.pth'
+_LINEAR_CKPT   = _CKPT_ROOT / 'linear_prob' / 'sleep_stage' / 'best_model.pth'
 
 # ch_names 매핑: 서버 학습 채널명 → 원클릭 채널 인덱스용 이름
 _SERVER_TO_LOCAL = {

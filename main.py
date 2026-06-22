@@ -15,12 +15,13 @@ import pickle
 def get_args():
     ### Subject Informations ###
     parser = argparse.ArgumentParser()
-    parser.add_argument('--NAME', default='연구자주도임상_테스트_2주차', type=str)
+    parser.add_argument('--NAME', default='연구자주도임상_테스트_4주차', type=str)
     parser.add_argument('--AGE', default= 23, type=int)
     parser.add_argument('--MEASUREMENT_DATE', default='2026-05-27 14:54', type=str)
     parser.add_argument('--BIRTH', default='2003-03-27', type=str)
     parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2026-05-27-1454.csv', type=str)
+    parser.add_argument('--FILE_NAME', default='A_03_2026-05-26-1013_week4.csv', type=str)
+    parser.add_argument('--STIMULUS', default='테스트 자극\n50hz 1ma on30s off15s 10분\n100000hz 10000ma on300s off15s', type=lambda s: s.replace('\\n', '\n'))
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
@@ -191,6 +192,7 @@ if __name__ == '__main__':
                                             'hrv': hrv_payload,
                                             'eeg': eeg_payload,
                                             'report': report_payload,
-                                            'trigger': trigger}),
+                                            'trigger': trigger,
+                                            'stimulus_info': args.STIMULUS}),
                         headers=headers)
         print(oo)

@@ -1,5 +1,6 @@
 # model weight
 neuronet/ckpt/
+synthsleepnet/ckpt/
 
 # image, analysis data
 *.jpg
