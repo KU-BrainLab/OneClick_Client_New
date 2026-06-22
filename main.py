@@ -1,4 +1,6 @@
 # -*- coding:utf-8 -*-
+import matplotlib
+matplotlib.use('Agg')   # GUI 없는 파일 저장 전용 백엔드 — joblib 스레드 충돌 방지
 import os
 import json
 import argparse
@@ -13,12 +15,12 @@ import pickle
 def get_args():
     ### Subject Informations ###
     parser = argparse.ArgumentParser()
-    parser.add_argument('--NAME', default='이은율', type=str)
-    parser.add_argument('--AGE', default= 39, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2026-04-30 15:18', type=str)
-    parser.add_argument('--BIRTH', default='1987-10-29', type=str)
+    parser.add_argument('--NAME', default='연구자주도임상_테스트_2주차', type=str)
+    parser.add_argument('--AGE', default= 23, type=int)
+    parser.add_argument('--MEASUREMENT_DATE', default='2026-05-27 14:54', type=str)
+    parser.add_argument('--BIRTH', default='2003-03-27', type=str)
     parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2026-04-30-1518.csv', type=str)
+    parser.add_argument('--FILE_NAME', default='2026-05-27-1454.csv', type=str)
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
@@ -41,7 +43,7 @@ class NpEncoder(json.JSONEncoder):
                 return obj.astype(str).tolist()
             return obj.tolist()
         return super(NpEncoder, self).default(obj)
-
+    
 
 def eeg_content_bulk(payload, name):
     return {
@@ -74,6 +76,10 @@ if __name__ == '__main__':
     args = get_args()
 
     file = args.FILE_NAME
+
+    os.makedirs(os.path.join('image', 'pac'), exist_ok=True)
+    os.makedirs(os.path.join('image', 'psd'), exist_ok=True)
+    os.makedirs(os.path.join('image', 'psd_diff'), exist_ok=True)
 
     #get dir path
     data_path = os.path.abspath('data')
@@ -122,7 +128,7 @@ if __name__ == '__main__':
     else:
         hrv_payload = json.dumps("", cls=NpEncoder)
 
-    #trigger = [0, 10, 25, 30, 45]
+    trigger = [0]
 
     ## 신호 이상시
     eeg_results = eeg_analysis(os.path.join(data_path, file), trigger)

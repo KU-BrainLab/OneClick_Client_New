@@ -23,6 +23,8 @@ def center_crop(img, dim):
 def get_diff_brain_connectivity(epoch_data, uuid, type, trigger):
 
     def connecitivy(sample, band_range, eeg_info, type):
+        if len(sample) == 0:
+            return None
         fc_method = type
 
         raw = mne.EpochsArray(sample, info=eeg_info)
@@ -68,6 +70,9 @@ def get_diff_brain_connectivity(epoch_data, uuid, type, trigger):
         for band_name, band_range in bands.items():
             conmat_1 = connecitivy(i_epoch, band_range, eeg_info, type)
             conmat_2 = connecitivy(j_epoch, band_range, eeg_info, type)
+            if conmat_1 is None or conmat_2 is None:
+                files[exp_names[diff_i]][band_name] = ''
+                continue
             conmat_d = conmat_2 - conmat_1
             tmp_name = os.path.join('image', dir, '{}_{}_{}.jpg'.format(uuid, exp_names[diff_i], band_name))
             tmp_name = os.path.abspath(tmp_name)

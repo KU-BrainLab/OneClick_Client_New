@@ -21,6 +21,7 @@ from .eeg_analysis.sleep_staging import get_sleep_staging
 from .eeg_analysis.brain_spectrogram import get_brain_spectrogram
 from .eeg_analysis.brain_delta_power_topo import get_brain_delta_power_topo
 from .eeg_analysis.brain_delta_fc import get_brain_delta_connectivity
+from .eeg_analysis.phase_amplitude_coupling import get_phase_amplitude_coupling
 ###############################################################
 
 mpl.rcParams['figure.constrained_layout.use'] = True
@@ -79,6 +80,16 @@ def main_analysis(path, trigger):
     brain_spectrogram = get_brain_spectrogram(filter_data, myuuid, trigger)
     brain_delta_power_topo = get_brain_delta_power_topo(epoch_data, myuuid, trigger, brain_sleep_stage['sleep_stage'])
     brain_delta_connectivity = get_brain_delta_connectivity(epoch_data, myuuid, trigger, brain_sleep_stage['sleep_stage'])
+    # brain_pac = get_phase_amplitude_coupling(epoch_data, myuuid, trigger)
+    '''
+    brain_pac = {
+        'baseline':    {'comodulogram': '', 'delta_theta': '', 'beta_gamma': ''},
+        'stimulation': {'comodulogram': '', 'delta_theta': '', 'beta_gamma': ''},
+        'recovery':    {'comodulogram': '', 'delta_theta': '', 'beta_gamma': ''},
+        'diff_stimulation_vs_baseline': '',
+        'diff_recovery_vs_stimulation': '',
+    }
+    '''
 
     brain_sleep = {key: brain_sleep_stage[key] for key in ['sleep_stage', 'sleep_stage_prob']}
     brain_report_summary = brain_sleep_stage['sleep_summary']
@@ -120,6 +131,37 @@ def main_analysis(path, trigger):
         diffs.append(d)
     diff1, diff2, diff3, diff4 = diffs
 
+    # ══════════════════════════════════════════════════════════════
+    #  최종 요약 출력
+    # ══════════════════════════════════════════════════════════════
+    band_ratios = brain_psd_diff.get('band_ratios', {})
+    if band_ratios:
+        avg_phases = ['baseline', 'stimulation', 'recovery']
+        phases     = list(band_ratios.keys())
+        band_names = list(next(iter(band_ratios.values())).keys())
+        col_w = 13
+        # 평균 낼 phase — 실제로 존재하는 것만
+        avg_keys = [p for p in avg_phases if p in band_ratios]
+
+        total_w = col_w * len(phases) + (col_w + 2) if avg_keys else col_w * len(phases)
+        print('\n' + '=' * (12 + total_w))
+        print('  PSD Band Power Ratio  (채널 평균 상대 파워, 0~1)')
+        print('=' * (12 + total_w))
+        header = f"  {'Band':<10}" + ''.join(f'{p:>{col_w}}' for p in phases)
+        if avg_keys:
+            header += f"  {'avg(B/S/R)':>{col_w}}"
+        print(header)
+        print(f"  {'-' * (10 + total_w)}")
+        for band in band_names:
+            row = f"  {band:<10}"
+            for p in phases:
+                row += f"{band_ratios[p][band]:>{col_w}.4f}"
+            if avg_keys:
+                avg_val = sum(band_ratios[p][band] for p in avg_keys) / len(avg_keys)
+                row += f"  {avg_val:>{col_w}.4f}"
+            print(row)
+        print('=' * (12 + total_w))
+
     return {
         'topography': brain_topograhpy,
         'connectivity': brain_conn_coh,
@@ -136,5 +178,6 @@ def main_analysis(path, trigger):
         'diff3': diff3,
         'diff4': diff4,
         'psd_spectrogram': brain_spectrogram,
-        'faa' : brain_faa
+        'faa' : brain_faa,
+        #'pac' : brain_pac,
     }
