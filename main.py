@@ -147,7 +147,8 @@ if __name__ == '__main__':
         'diff3': eeg_diff_content_bulk(eeg_results, 'diff3'),
         'diff4': eeg_diff_content_bulk(eeg_results, 'diff4'),
         'faa' : eeg_results['faa'],
-        'psd_spectrogram': eeg_results['psd_spectrogram']
+        'psd_spectrogram': eeg_results['psd_spectrogram'],
+        'spindle_coupling': eeg_results['spindle_coupling']
     }, cls=NpEncoder)
 
     report_payload = json.dumps({

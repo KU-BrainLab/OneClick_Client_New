@@ -22,6 +22,7 @@ from .eeg_analysis.brain_spectrogram import get_brain_spectrogram
 from .eeg_analysis.brain_delta_power_topo import get_brain_delta_power_topo
 from .eeg_analysis.brain_delta_fc import get_brain_delta_connectivity
 from .eeg_analysis.phase_amplitude_coupling import get_phase_amplitude_coupling
+from .eeg_analysis.sleep_spindle_coupling import get_spindle_coupling_per_phase
 ###############################################################
 
 mpl.rcParams['figure.constrained_layout.use'] = True
@@ -80,6 +81,7 @@ def main_analysis(path, trigger):
     brain_spectrogram = get_brain_spectrogram(filter_data, myuuid, trigger)
     brain_delta_power_topo = get_brain_delta_power_topo(epoch_data, myuuid, trigger, brain_sleep_stage['sleep_stage'])
     brain_delta_connectivity = get_brain_delta_connectivity(epoch_data, myuuid, trigger, brain_sleep_stage['sleep_stage'])
+    brain_spindle_coupling = get_spindle_coupling_per_phase(filter_data, trigger, brain_sleep_stage['sleep_stage'])
     # brain_pac = get_phase_amplitude_coupling(epoch_data, myuuid, trigger)
     '''
     brain_pac = {
@@ -179,5 +181,6 @@ def main_analysis(path, trigger):
         'diff4': diff4,
         'psd_spectrogram': brain_spectrogram,
         'faa' : brain_faa,
+        'spindle_coupling': brain_spindle_coupling,
         #'pac' : brain_pac,
     }
