@@ -225,47 +225,55 @@ def _extract_phase_raw(raw, t_start_min, t_end_min, sleep_stages,
     return raw_cat, bad_mask
 
 
+def _compute_one_condition(raw, t_start_min, t_end_min, sleep_stages,
+                           stage_set, stage_label):
+    """특정 수면단계 조건 하나에 대한 coupling 계산. 데이터 없으면 None 반환."""
+    raw_ph, bad_mask = _extract_phase_raw(
+        raw, t_start_min, t_end_min, sleep_stages, stage_set)
+    if raw_ph is None:
+        return None
+
+    ch_results = {}
+    for ch in COUPLING_CHANNELS:
+        res = _run_one_channel(raw_ph, bad_mask, ch)
+        if res is not None:
+            ch_results[ch] = res
+
+    if not ch_results:
+        return None
+
+    def _avg(key):
+        vals = [r[key] for r in ch_results.values() if r[key] is not None]
+        return float(np.mean(vals)) if vals else None
+
+    return {
+        'coupled_ratio':  _avg('coupled_ratio'),
+        'MRL':            _avg('MRL'),
+        'mean_phase_deg': _avg('mean_phase_deg'),
+        'n_SO':           int(np.mean([r['n_SO']      for r in ch_results.values()])),
+        'n_spindle':      int(np.mean([r['n_spindle'] for r in ch_results.values()])),
+        'n_coupled':      int(np.mean([r['n_coupled'] for r in ch_results.values()])),
+        'stage_used':     stage_label,
+        **{ch: r for ch, r in ch_results.items()},
+    }
+
+
 def _coupling_for_phase(raw, t_start_min, t_end_min, sleep_stages):
     """
-    한 phase에 대해 N2 → NREM → all 순으로 fallback하며 커플링 계산.
-    채널별 결과를 평균하여 반환.
+    한 phase에 대해 N2(없으면 NREM)와 전체(all)를 독립적으로 계산.
+    Returns {'n2': {...}|None, 'all': {...}|None}
     """
-    for stage_set, stage_label in [
-        (STAGE_N2,   'N2'),
-        (STAGE_NREM, 'NREM'),
-        (STAGE_ALL,  'all'),
-    ]:
-        raw_ph, bad_mask = _extract_phase_raw(
-            raw, t_start_min, t_end_min, sleep_stages, stage_set)
-        if raw_ph is None:
-            continue
+    # N2 우선, 없으면 NREM fallback
+    n2_result = _compute_one_condition(raw, t_start_min, t_end_min,
+                                       sleep_stages, STAGE_N2, 'N2')
+    if n2_result is None:
+        n2_result = _compute_one_condition(raw, t_start_min, t_end_min,
+                                           sleep_stages, STAGE_NREM, 'NREM')
 
-        ch_results = {}
-        for ch in COUPLING_CHANNELS:
-            res = _run_one_channel(raw_ph, bad_mask, ch)
-            if res is not None:
-                ch_results[ch] = res
+    all_result = _compute_one_condition(raw, t_start_min, t_end_min,
+                                        sleep_stages, STAGE_ALL, 'all')
 
-        if not ch_results:
-            continue
-
-        # 채널 평균
-        def _avg(key):
-            vals = [r[key] for r in ch_results.values() if r[key] is not None]
-            return float(np.mean(vals)) if vals else None
-
-        return {
-            'coupled_ratio':  _avg('coupled_ratio'),
-            'MRL':            _avg('MRL'),
-            'mean_phase_deg': _avg('mean_phase_deg'),
-            'n_SO':           int(np.mean([r['n_SO']      for r in ch_results.values()])),
-            'n_spindle':      int(np.mean([r['n_spindle'] for r in ch_results.values()])),
-            'n_coupled':      int(np.mean([r['n_coupled'] for r in ch_results.values()])),
-            'stage_used':     stage_label,
-            **{ch: r for ch, r in ch_results.items()},
-        }
-
-    return {**_EMPTY_RESULT}
+    return {'n2': n2_result, 'all': all_result}
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -284,8 +292,7 @@ def get_spindle_coupling_per_phase(filter_data, trigger, sleep_stages):
 
     Returns
     -------
-    dict  {phase_name: {coupled_ratio, MRL, mean_phase_deg, n_SO, n_spindle,
-                        n_coupled, stage_used, 'P3': {...}, 'P4': {...}}}
+    dict  {phase_name: {'n2': {metrics}|None, 'all': {metrics}|None}}
     """
     n_phases = len(trigger) - 1
     results  = {}
@@ -298,13 +305,15 @@ def get_spindle_coupling_per_phase(filter_data, trigger, sleep_stages):
         try:
             results[phase_name] = _coupling_for_phase(
                 filter_data, t_start, t_end, sleep_stages)
-            r = results[phase_name]
-            print(f'  stage={r["stage_used"]}  '
-                  f'coupled_ratio={r["coupled_ratio"]}  '
-                  f'MRL={r["MRL"]}  '
-                  f'n_SO={r["n_SO"]}  n_coupled={r["n_coupled"]}')
+            n2  = results[phase_name]['n2']
+            all_ = results[phase_name]['all']
+            print(f'  N2 : stage={n2["stage_used"] if n2 else "-"}  '
+                  f'coupled_ratio={n2["coupled_ratio"] if n2 else "-"}  '
+                  f'MRL={n2["MRL"] if n2 else "-"}')
+            print(f'  All: coupled_ratio={all_["coupled_ratio"] if all_ else "-"}  '
+                  f'MRL={all_["MRL"] if all_ else "-"}')
         except Exception as e:
             print(f'  [경고] {phase_name} 커플링 계산 실패: {e}')
-            results[phase_name] = {**_EMPTY_RESULT}
+            results[phase_name] = {'n2': None, 'all': None}
 
     return results
