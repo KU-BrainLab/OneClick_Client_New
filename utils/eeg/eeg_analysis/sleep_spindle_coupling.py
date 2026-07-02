@@ -4,7 +4,7 @@ SO-Spindle Coupling — OneClick phase-aware wrapper
 Based on Schreiner et al. (2021) & Staresina et al. (2015)
 
 채널: P3, P4 (tVNS_SOSpindle 프로젝트와 동일)
-수면단계: N2 우선 → NREM(N1+N2+N3) fallback → 전체 fallback
+수면단계: N1, N2, N3, REM 각각 독립 계산
 """
 
 import numpy as np
@@ -19,9 +19,17 @@ SPINDLE_BAND         = (12.0, 16.0)
 UP_STATE_WINDOW_DEG  = 180.0   # ±90° from SO peak
 EPOCH_DUR_SEC        = 30.0
 
-STAGE_N2   = {2}
-STAGE_NREM = {1, 2, 3}
-STAGE_ALL  = {0, 1, 2, 3, 4}
+STAGE_N1  = {1}
+STAGE_N2  = {2}
+STAGE_N3  = {3}
+STAGE_REM = {4}
+
+_STAGES = [
+    ('n1',  STAGE_N1,  'N1'),
+    ('n2',  STAGE_N2,  'N2'),
+    ('n3',  STAGE_N3,  'N3'),
+    ('rem', STAGE_REM, 'REM'),
+]
 
 PHASE_NAMES = ['baseline', 'stimulation1', 'recovery1', 'stimulation2', 'recovery2']
 
@@ -260,20 +268,14 @@ def _compute_one_condition(raw, t_start_min, t_end_min, sleep_stages,
 
 def _coupling_for_phase(raw, t_start_min, t_end_min, sleep_stages):
     """
-    한 phase에 대해 N2(없으면 NREM)와 전체(all)를 독립적으로 계산.
-    Returns {'n2': {...}|None, 'all': {...}|None}
+    한 phase에 대해 N1/N2/N3/REM 각각 독립 계산.
+    Returns {'n1': {...}|None, 'n2': {...}|None, 'n3': {...}|None, 'rem': {...}|None}
     """
-    # N2 우선, 없으면 NREM fallback
-    n2_result = _compute_one_condition(raw, t_start_min, t_end_min,
-                                       sleep_stages, STAGE_N2, 'N2')
-    if n2_result is None:
-        n2_result = _compute_one_condition(raw, t_start_min, t_end_min,
-                                           sleep_stages, STAGE_NREM, 'NREM')
-
-    all_result = _compute_one_condition(raw, t_start_min, t_end_min,
-                                        sleep_stages, STAGE_ALL, 'all')
-
-    return {'n2': n2_result, 'all': all_result}
+    return {
+        key: _compute_one_condition(raw, t_start_min, t_end_min,
+                                    sleep_stages, stage_set, label)
+        for key, stage_set, label in _STAGES
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -305,13 +307,10 @@ def get_spindle_coupling_per_phase(filter_data, trigger, sleep_stages):
         try:
             results[phase_name] = _coupling_for_phase(
                 filter_data, t_start, t_end, sleep_stages)
-            n2  = results[phase_name]['n2']
-            all_ = results[phase_name]['all']
-            print(f'  N2 : stage={n2["stage_used"] if n2 else "-"}  '
-                  f'coupled_ratio={n2["coupled_ratio"] if n2 else "-"}  '
-                  f'MRL={n2["MRL"] if n2 else "-"}')
-            print(f'  All: coupled_ratio={all_["coupled_ratio"] if all_ else "-"}  '
-                  f'MRL={all_["MRL"] if all_ else "-"}')
+            for key, _, label in _STAGES:
+                r = results[phase_name][key]
+                print(f'  {label:3s}: coupled_ratio={r["coupled_ratio"] if r else "-"}  '
+                      f'MRL={r["MRL"] if r else "-"}')
         except Exception as e:
             print(f'  [경고] {phase_name} 커플링 계산 실패: {e}')
             results[phase_name] = {'n2': None, 'all': None}
