@@ -15,13 +15,13 @@ import pickle
 def get_args():
     ### Subject Informations ###
     parser = argparse.ArgumentParser()
-    parser.add_argument('--NAME', default='김정은', type=str)
-    parser.add_argument('--AGE', default=55, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2026-07-01 17:05', type=str)
-    parser.add_argument('--BIRTH', default='1970-11-02', type=str)
-    parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2026-07-01-1705.csv', type=str)
-    parser.add_argument('--STIMULUS', default='', type=lambda s: s.replace('\\n', '\n'))
+    parser.add_argument('--NAME', default='김조셉', type=str)
+    parser.add_argument('--AGE', default= 38, type=int)
+    parser.add_argument('--MEASUREMENT_DATE', default='2026-07-09 10:59', type=str)
+    parser.add_argument('--BIRTH', default='1988-05-05', type=str)
+    parser.add_argument('--SEX', default='male', choices=['male', 'female'], type=str)
+    parser.add_argument('--FILE_NAME', default='2026-07-09-1059.csv', type=str)
+    parser.add_argument('--STIMULUS', default='General Sleep protocol', type=lambda s: s.replace('\\n', '\n'))
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
