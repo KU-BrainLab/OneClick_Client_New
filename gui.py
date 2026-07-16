@@ -35,6 +35,7 @@ def run_analysis(args_dict, log_queue):
     birth     = args_dict['BIRTH']
     sex       = args_dict['SEX']
     debug     = args_dict['DEBUG_MODE']
+    crop      = args_dict.get('CROP_MODE', True)
 
     data_path = os.path.abspath('data')
     save_path = os.path.abspath(os.path.join('data', 'clean'))
@@ -77,7 +78,7 @@ def run_analysis(args_dict, log_queue):
     # trigger 는 여기서 원본 타임라인 기준으로 정규화되어 그대로 서버로 나간다.
     try:
         eeg_results = analyze_eeg_with_crop(
-            data_path, file, trigger,
+            data_path, file, trigger, crop=crop,
             log=lambda msg: log_queue.put(msg + '\n'),
         )
     except Exception as e:
@@ -211,14 +212,20 @@ class App(tk.Tk):
         self._vars['birth'].set('1965-06-10')
         self._vars['fname'].set('2026-03-10-1509.csv')
 
-        # DEBUG MODE 체크박스
+        # DEBUG MODE / CROP MODE 체크박스
         self._debug_var = tk.BooleanVar(value=False)
+        self._crop_var = tk.BooleanVar(value=True)
         debug_frame = tk.Frame(self)
         debug_frame.grid(row=2, column=0, columnspan=2, pady=(0, 5))
         tk.Checkbutton(
             debug_frame, text='DEBUG MODE',
             variable=self._debug_var, font=('Helvetica', 9)
-        ).pack()
+        ).pack(side='left')
+        # 체크 = 노이즈 구간을 잘라낸 temp.csv 로 EEG 분석 (ECG 는 항상 원본)
+        tk.Checkbutton(
+            debug_frame, text='CROP MODE (전처리)',
+            variable=self._crop_var, font=('Helvetica', 9)
+        ).pack(side='left', padx=(12, 0))
 
         # 실행 버튼
         self._run_btn = tk.Button(
@@ -278,6 +285,7 @@ class App(tk.Tk):
             'SEX':              self._vars['sex'].get(),
             'FILE_NAME':        fname,
             'DEBUG_MODE':       self._debug_var.get(),
+            'CROP_MODE':        self._crop_var.get(),
         }
 
         self._run_btn.config(state='disabled', text='running...')

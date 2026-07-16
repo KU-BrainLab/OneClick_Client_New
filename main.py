@@ -14,21 +14,46 @@ from utils.ecg.feature_extraction import ECGFeatureExtractor
 import torch
 import pickle
 
+def str2bool(v):
+    """'False' 같은 문자열을 제대로 해석한다.
+
+    argparse 의 type=bool 은 bool('False') == True 라서 커맨드라인으로 끌 수가 없다.
+    (DEBUG_MODE 는 소스에서 default 를 고쳐 쓰는 방식이라 그 함정을 안 밟는다.)
+    CROP_MODE 는 전처리 전/후를 번갈아 돌려 비교하는 용도라 커맨드라인으로 끄는 게
+    자연스러운데, 조용히 반대로 동작하면 잘못된 비교 결과를 얻게 되므로 여기서 막는다.
+    """
+    if isinstance(v, bool):
+        return v
+    s = str(v).strip().lower()
+    if s in ('true', 't', 'yes', 'y', '1'):
+        return True
+    if s in ('false', 'f', 'no', 'n', '0'):
+        return False
+    raise argparse.ArgumentTypeError(f"True/False 로 지정해주세요 (받은 값: {v!r})")
+
+
 def get_args():
     ### Subject Informations ###
     parser = argparse.ArgumentParser()
-    parser.add_argument('--NAME', default='김조셉', type=str)
-    parser.add_argument('--AGE', default= 38, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2026-07-09 10:59', type=str)
+    parser.add_argument('--NAME', default='김용식(preprocessing EEG)', type=str)
+    parser.add_argument('--AGE', default= 65, type=int)
+    parser.add_argument('--MEASUREMENT_DATE', default='2025-07-08 10:20', type=str)
     parser.add_argument('--BIRTH', default='1988-05-05', type=str)
     parser.add_argument('--SEX', default='male', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2026-07-09-1059.csv', type=str)
-    parser.add_argument('--STIMULUS', default='General Sleep protocol', type=lambda s: s.replace('\\n', '\n'))
+    parser.add_argument('--FILE_NAME', default='2025-07-08-1020.csv', type=str)
+    parser.add_argument('--STIMULUS', default='(3ma, 250us, 20hz  On 30s Off 15s) 7분 + (3ma, 500us, 20hz  On 30s Off 15s) 8분 (1ma, 500us, 5hz  On 30s Off 15s)  7분+ (2ma, 250us, 10hz) 8분 ', type=lambda s: s.replace('\\n', '\n'))
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
     ### 확인 필수로 해주세요 ###
     parser.add_argument('--DEBUG_MODE', default=False, type=bool)
+
+    ### CROP_MODE ###
+    ### 전처리(노이즈 자동 크롭) 전/후 토글 ###
+    ### True  = 노이즈 구간을 잘라낸 temp.csv 로 EEG 분석 ###
+    ### False = 업로드된 원본 csv 그대로 EEG 분석 (크롭 도입 이전과 동일) ###
+    ### ECG/HRV 는 두 경우 모두 원본 csv 를 쓴다 ###
+    parser.add_argument('--CROP_MODE', default=True, type=str2bool)
     return parser.parse_args()
 
 
@@ -102,11 +127,14 @@ def check_not_temp_file(file):
                          f"(크롭 임시파일과 충돌해 원본을 덮어씁니다). 파일명을 바꿔주세요.")
 
 
-def analyze_eeg_with_crop(data_path, file, trigger, log=print):
+def analyze_eeg_with_crop(data_path, file, trigger, crop=True, log=print):
     """ECG 이후 단계: 노이즈 크롭 -> temp.csv -> EEG 분석 -> 서버용 trigger 정규화.
 
     main.py 와 gui.py 가 공유한다. 배선이 한쪽에만 적용되는 일을 막기 위해
     두 진입점 모두 반드시 이 함수를 통해야 한다.
+
+    crop=False 면 크롭을 건너뛰고 업로드된 원본 csv 를 그대로 EEG 에 넘긴다.
+    (전처리 전/후 비교용. 크롭 도입 이전 동작과 정확히 동일하다.)
 
     `trigger` 는 원본 타임라인 기준으로 in-place 정규화된다(서버/HRV 용).
     반환값은 eeg_results.
@@ -116,25 +144,29 @@ def analyze_eeg_with_crop(data_path, file, trigger, log=print):
 
     raw_trigger = list(trigger)   # finalize_trigger 가 trigger 를 mutate 하기 전 사본
     eeg_path, eeg_trigger = src_path, list(trigger)
-    try:
-        spans, cropped_trigger = auto_crop_csv(src_path, temp_path, amp_threshold=200.0)
-        eeg_path = temp_path
 
-        if not trigger:
-            # ECG 실패로 phase 마커가 없는 경우. main_analysis 의 1-phase fallback 을
-            # 그대로 타도록 빈 리스트를 유지한다.
-            eeg_trigger = []
-        elif len(cropped_trigger) != len(trigger):
-            log(f"[CROP] 경고: 트리거 개수가 다릅니다 "
-                f"(원본 {len(trigger)}개 {trigger} / 크롭 {len(cropped_trigger)}개 "
-                f"{cropped_trigger}). 트리거 보호가 정상이면 같아야 합니다. "
-                f"원본 트리거로 폴백합니다.")
+    if not crop:
+        log('[CROP] CROP_MODE=False -> 전처리 없이 원본 csv 로 EEG 분석')
+    else:
+        try:
+            spans, cropped_trigger = auto_crop_csv(src_path, temp_path, amp_threshold=200.0)
+            eeg_path = temp_path
+
+            if not trigger:
+                # ECG 실패로 phase 마커가 없는 경우. main_analysis 의 1-phase fallback 을
+                # 그대로 타도록 빈 리스트를 유지한다.
+                eeg_trigger = []
+            elif len(cropped_trigger) != len(trigger):
+                log(f"[CROP] 경고: 트리거 개수가 다릅니다 "
+                    f"(원본 {len(trigger)}개 {trigger} / 크롭 {len(cropped_trigger)}개 "
+                    f"{cropped_trigger}). 트리거 보호가 정상이면 같아야 합니다. "
+                    f"원본 트리거로 폴백합니다.")
+                eeg_path, eeg_trigger = src_path, list(trigger)
+            else:
+                eeg_trigger = list(cropped_trigger)
+        except Exception as e:
+            log(f"[CROP] 크롭 실패, 원본 csv 로 EEG 진행: {e}")
             eeg_path, eeg_trigger = src_path, list(trigger)
-        else:
-            eeg_trigger = list(cropped_trigger)
-    except Exception as e:
-        log(f"[CROP] 크롭 실패, 원본 csv 로 EEG 진행: {e}")
-        eeg_path, eeg_trigger = src_path, list(trigger)
 
     # 서버로 가는 trigger 는 원본 타임라인을 유지해야 한다. main_analysis 는
     # eeg_trigger 만 mutate 하므로 여기서 같은 정규화를 원본 기준으로 직접 해준다.
@@ -215,7 +247,7 @@ if __name__ == '__main__':
 
     # EEG 전용 노이즈 크롭 — ECG/HRV 는 위에서 원본 csv 로 이미 처리했다.
     ## 신호 이상시
-    eeg_results = analyze_eeg_with_crop(data_path, file, trigger)
+    eeg_results = analyze_eeg_with_crop(data_path, file, trigger, crop=args.CROP_MODE)
     eeg_payload = json.dumps({
         'psd': eeg_results['psd_result'],
         'sleep_staging': eeg_results['sleep_stage'],
