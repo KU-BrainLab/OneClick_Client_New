@@ -23,10 +23,10 @@ class QueueStream:
 def run_analysis(args_dict, log_queue):
     import numpy as np
     import requests
-    from utils.eeg.analysis import main_analysis as eeg_analysis
     from utils.ecg.clean_up import CleanUpECG
     from utils.ecg.feature_extraction import ECGFeatureExtractor
-    from main import NpEncoder, eeg_content_bulk, eeg_diff_content_bulk
+    from main import (NpEncoder, eeg_content_bulk, eeg_diff_content_bulk,
+                      analyze_eeg_with_crop, check_not_temp_file)
 
     file      = args_dict['FILE_NAME']
     name      = args_dict['NAME']
@@ -42,6 +42,14 @@ def run_analysis(args_dict, log_queue):
     mode = 'DEBUG' if debug else 'LIVE'
     log_queue.put(f'[{mode} MODE] Start analyze: {file}\n')
     log_queue.put('=' * 55 + '\n')
+
+    # 크롭 임시파일을 원본으로 오인해 선택하는 것을 막는다(파일 브라우저가 data/ 를 연다).
+    try:
+        check_not_temp_file(file)
+    except ValueError as e:
+        log_queue.put(f'[CROP] {e}\n')
+        log_queue.put('FAILED\n')
+        return
 
     # ECG
     try:
@@ -65,9 +73,13 @@ def run_analysis(args_dict, log_queue):
         hrv_payload = json.dumps('', cls=NpEncoder)
         trigger = []
 
-    # EEG
+    # EEG — 노이즈 크롭(temp.csv) 후 분석. main.py 와 동일한 배선을 공유한다.
+    # trigger 는 여기서 원본 타임라인 기준으로 정규화되어 그대로 서버로 나간다.
     try:
-        eeg_results = eeg_analysis(os.path.join(data_path, file), trigger)
+        eeg_results = analyze_eeg_with_crop(
+            data_path, file, trigger,
+            log=lambda msg: log_queue.put(msg + '\n'),
+        )
     except Exception as e:
         log_queue.put(f'[EEG 오류] {e}\n')
         log_queue.put('FAILED\n')
