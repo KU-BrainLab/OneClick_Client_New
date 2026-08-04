@@ -36,6 +36,7 @@ def run_analysis(args_dict, log_queue):
     sex       = args_dict['SEX']
     debug     = args_dict['DEBUG_MODE']
     crop      = args_dict.get('CROP_MODE', True)
+    sleep_model = args_dict.get('SLEEP_MODEL', 'neuronet')
 
     data_path = os.path.abspath('data')
     save_path = os.path.abspath(os.path.join('data', 'clean'))
@@ -78,7 +79,7 @@ def run_analysis(args_dict, log_queue):
     # trigger 는 여기서 원본 타임라인 기준으로 정규화되어 그대로 서버로 나간다.
     try:
         eeg_results = analyze_eeg_with_crop(
-            data_path, file, trigger, crop=crop,
+            data_path, file, trigger, crop=crop, sleep_model=sleep_model,
             log=lambda msg: log_queue.put(msg + '\n'),
         )
     except Exception as e:
@@ -179,6 +180,11 @@ class App(tk.Tk):
             ('생년월일 (BIRTH)',         'birth', 'entry', None),
             ('성별 (SEX)',              'sex',   'combo', ['male', 'female']),
             ('파일명 (FILE_NAME)',       'fname', 'file',  None),
+            # sleep_staging.AVAILABLE_MODELS 와 맞춰야 한다. 여기서 import 하지 않는 건
+            # sleep_staging 이 torch/mne 를 모듈 단위로 끌고 와 GUI 시작이 느려지기 때문.
+            # 오타를 넣어도 get_sleep_staging 이 ValueError 로 걸러낸다.
+            ('수면단계 모델 (SLEEP_MODEL)', 'sleep_model', 'combo',
+                                        ['neuronet', 'synthsleepnet']),
         ]
 
         self._vars = {}
@@ -211,6 +217,7 @@ class App(tk.Tk):
         self._vars['mdate'].set('2026-03-10-1509')
         self._vars['birth'].set('1965-06-10')
         self._vars['fname'].set('2026-03-10-1509.csv')
+        self._vars['sleep_model'].set('neuronet')
 
         # DEBUG MODE / CROP MODE 체크박스
         self._debug_var = tk.BooleanVar(value=False)
@@ -286,6 +293,7 @@ class App(tk.Tk):
             'FILE_NAME':        fname,
             'DEBUG_MODE':       self._debug_var.get(),
             'CROP_MODE':        self._crop_var.get(),
+            'SLEEP_MODEL':      self._vars['sleep_model'].get(),
         }
 
         self._run_btn.config(state='disabled', text='running...')

@@ -17,7 +17,7 @@ from .eeg_analysis.psd_topography import get_psd_topography
 from .eeg_analysis.brain_connectivity import get_brain_connectivity
 from .eeg_analysis.brain_connectivity_diff import get_diff_brain_connectivity
 from .eeg_analysis.fronto_limbic import get_fronto_limbic_analysis
-from .eeg_analysis.sleep_staging import get_sleep_staging
+from .eeg_analysis.sleep_staging import get_sleep_staging, DEFAULT_MODEL as DEFAULT_SLEEP_MODEL
 from .eeg_analysis.brain_spectrogram import get_brain_spectrogram
 from .eeg_analysis.brain_delta_power_topo import get_brain_delta_power_topo
 from .eeg_analysis.brain_delta_fc import get_brain_delta_connectivity
@@ -33,7 +33,7 @@ def epoching(data, epoch_duration=30., artifact_rejection=False):
                                            reject_by_annotation=artifact_rejection)
     return epoched
 
-def main_analysis(path, trigger):
+def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
     data = DataFilter.read_file(path)
     eeg_data = data[1:16, :] / 1e6
 
@@ -73,7 +73,7 @@ def main_analysis(path, trigger):
     brain_conn_plv = get_brain_connectivity(epoch_data, myuuid, 'plv', trigger)
     brain_psd = get_psd_analysis(epoch_data)
     brain_fronto_limbic = get_fronto_limbic_analysis(filter_data, myuuid)
-    brain_sleep_stage = get_sleep_staging(epoch_data, ch_list)
+    brain_sleep_stage = get_sleep_staging(epoch_data, ch_list, model=sleep_model)
     brain_psd_diff = get_psd_diff_analysis(epoch_data, myuuid, trigger)
     brain_conn_diff_coh = get_diff_brain_connectivity(epoch_data, myuuid, 'wpli', trigger)
     brain_conn_diff_plv = get_diff_brain_connectivity(epoch_data, myuuid, 'plv', trigger)
