@@ -241,6 +241,11 @@ def _compute_one_condition(raw, t_start_min, t_end_min, sleep_stages,
     if raw_ph is None:
         return None
 
+    # 분당 밀도의 분모. phase 전체 길이가 아니라 "그 phase 안에서 이 수면단계로
+    # 잡힌 시간"이다. baseline 10분 중 N2 가 2분이면 2로 나눠야 한다.
+    # _extract_phase_raw 가 해당 epoch 만 이어붙인 Raw 를 돌려주므로 그 길이를 쓴다.
+    duration_min = raw_ph.n_times / raw_ph.info['sfreq'] / 60.0
+
     ch_results = {}
     for ch in COUPLING_CHANNELS:
         res = _run_one_channel(raw_ph, bad_mask, ch)
@@ -254,13 +259,32 @@ def _compute_one_condition(raw, t_start_min, t_end_min, sleep_stages,
         vals = [r[key] for r in ch_results.values() if r[key] is not None]
         return float(np.mean(vals)) if vals else None
 
+    def _count(key):
+        return float(np.mean([r[key] for r in ch_results.values()]))
+
+    def _per_min(key):
+        """채널 평균 개수를 분석 시간으로 나눈 밀도.
+
+        표시용 n_* 는 int() 로 잘리지만(예: P3=0, P4=3 -> 1) 밀도는 자르기 전
+        실수 평균으로 계산한다. duration 은 채널 공통이라 "채널별 밀도의 평균"과
+        같은 값이다.
+        """
+        if duration_min <= 0:
+            return None
+        return float(_count(key) / duration_min)
+
     return {
         'coupled_ratio':  _avg('coupled_ratio'),
         'MRL':            _avg('MRL'),
         'mean_phase_deg': _avg('mean_phase_deg'),
-        'n_SO':           int(np.mean([r['n_SO']      for r in ch_results.values()])),
-        'n_spindle':      int(np.mean([r['n_spindle'] for r in ch_results.values()])),
-        'n_coupled':      int(np.mean([r['n_coupled'] for r in ch_results.values()])),
+        'n_SO':           int(_count('n_SO')),
+        'n_spindle':      int(_count('n_spindle')),
+        'n_coupled':      int(_count('n_coupled')),
+        # 분당 밀도 — phase 길이가 제각각이라 개수만으로는 비교가 안 된다.
+        'duration_min':      round(duration_min, 2),
+        'n_SO_per_min':      _per_min('n_SO'),
+        'n_spindle_per_min': _per_min('n_spindle'),
+        'n_coupled_per_min': _per_min('n_coupled'),
         'stage_used':     stage_label,
         **{ch: r for ch, r in ch_results.items()},
     }
