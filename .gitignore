@@ -3,10 +3,14 @@ neuronet/ckpt/
 synthsleepnet/ckpt/
 
 # image, analysis data
+# 측정 원본이 실수로 커밋되지 않게 한다. 피험자 이름이 파일명에 들어간다.
 *.jpg
 *.png
 !brain.png
 *.csv
+*.zip
+*.edf
+*.pkl
 
 
 #################################################################
