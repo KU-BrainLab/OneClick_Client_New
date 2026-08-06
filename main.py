@@ -17,13 +17,18 @@ import pickle
 
 def get_args():
     ### Subject Informations ###
+    ### 아래 기본값은 형식을 보여주기 위한 예시다. 실제 피험자 정보는 커밋하지 말고 ###
+    ### 명령행 인자로 넘길 것 (이름+생년월일은 개인을 특정할 수 있다) ###
+    ###   python main.py --NAME 홍길동 --AGE 30 --BIRTH 1996-01-01 \ ###
+    ###                  --SEX male --MEASUREMENT_DATE "2026-01-01 09:00" \ ###
+    ###                  --FILE_NAME 2026-01-01-0900.csv ###
     parser = argparse.ArgumentParser()
-    parser.add_argument('--NAME', default='조현승', type=str)
-    parser.add_argument('--AGE', default= 28, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2025-08-04 13:15', type=str)
-    parser.add_argument('--BIRTH', default='1997-10-27', type=str)
-    parser.add_argument('--SEX', default='female', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2026-08-04-1315.csv', type=str)
+    parser.add_argument('--NAME', default='예시피험자', type=str)
+    parser.add_argument('--AGE', default= 30, type=int)
+    parser.add_argument('--MEASUREMENT_DATE', default='2026-01-01 09:00', type=str)
+    parser.add_argument('--BIRTH', default='1996-01-01', type=str)
+    parser.add_argument('--SEX', default='male', choices=['male', 'female'], type=str)
+    parser.add_argument('--FILE_NAME', default='2026-01-01-0900.csv', type=str)
     parser.add_argument('--STIMULUS', default='General Sleep', type=lambda s: s.replace('\\n', '\n'))
 
     ### DEBUG_MODE ###
@@ -33,9 +38,7 @@ def get_args():
     parser.add_argument('--CROP_MODE', default=True, type=bool)
 
     ### SLEEP_MODEL ###
-    ### 수면단계 분류 모델 선택 ###
-    ### neuronet       = Sleep-EDFX 학습, 5-fold 앙상블 (구버전) ###
-    ### synthsleepnet  = SHHS1 학습, 단일 모델 ###
+    ### neuronet, synthsleepnet ###
     parser.add_argument('--SLEEP_MODEL', default=DEFAULT_SLEEP_MODEL,
                         choices=list(AVAILABLE_MODELS), type=str)
 
