@@ -17,6 +17,12 @@ fsspec==2024.6.1
 future==1.0.0
 h5py==3.11.0
 huggingface-hub==0.24.5
+# peft/transformers 는 SynthSleepNet(utils/eeg/synthsleepnet/loader.py) 전용이다.
+# 고정하지 않으면 최신 버전이 깔리면서 위 huggingface-hub 0.24.5 와 어긋나
+# ImportError: cannot import name 'is_offline_mode' 가 난다.
+# 세 패키지는 반드시 함께 올리고 함께 내려야 한다.
+transformers==4.44.2
+peft==0.12.0
 idna==3.7
 importlib_resources==6.4.0
 Jinja2==3.1.4

@@ -6,12 +6,14 @@ import mne
 import torch
 import numpy as np
 
-# synthsleepnet 패키지를 로컬 패키지로 임포트
+# synthsleepnet 패키지를 로컬 패키지로 임포트할 수 있게 경로만 잡아둔다.
+# 실제 임포트는 _get_model() 안에서 한다 — synthsleepnet/loader.py 가 peft 를
+# 최상단에서 불러오고, peft 는 transformers, huggingface_hub 로 이어진다.
+# 여기서 임포트하면 기본 모델(NeuroNet)만 쓰는 사람도 그 의존성이 깨졌을 때
+# 파이프라인 전체가 실행조차 안 된다(실제로 발생한 장애다).
 _EEG_DIR = Path(__file__).parent.parent
 if str(_EEG_DIR) not in sys.path:
     sys.path.insert(0, str(_EEG_DIR))
-
-from synthsleepnet.loader import load_classifier
 
 _PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:      # neuronet 패키지가 프로젝트 루트에 있다
@@ -43,8 +45,20 @@ _neuronet_cache = None         # NeuroNet 5-fold, 최초 1회만 로드
 
 
 def _get_model():
+    """SynthSleepNet 을 로드한다. 이 모델을 고를 때만 peft/transformers 가 필요하다."""
     global _model_cache
     if _model_cache is None:
+        try:
+            from synthsleepnet.loader import load_classifier
+        except ImportError as e:
+            raise ImportError(
+                f"SynthSleepNet 을 불러오지 못했습니다: {e}\n"
+                f"이 모델은 peft/transformers/huggingface_hub 가 필요합니다.\n"
+                f"  pip install -r requirements.txt\n"
+                f"로 버전을 맞추거나, 기본 모델을 쓰려면 "
+                f"--SLEEP_MODEL {MODEL_NEURONET} 로 실행하세요 "
+                f"(NeuroNet 은 이 의존성이 필요 없습니다)."
+            ) from e
         print('[SynthSleepNet] 모델 로드 중...')
         model, ch_names = load_classifier(
             backbone_ckpt_path=str(_BACKBONE_CKPT),
