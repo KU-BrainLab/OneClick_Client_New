@@ -23,6 +23,7 @@ class QueueStream:
 def run_analysis(args_dict, log_queue):
     import numpy as np
     import requests
+    from utils.ai_report import request_ai_report
     from utils.ecg.clean_up import CleanUpECG
     from utils.ecg.feature_extraction import ECGFeatureExtractor
     from main import (NpEncoder, eeg_content_bulk, eeg_diff_content_bulk,
@@ -139,6 +140,9 @@ def run_analysis(args_dict, log_queue):
                 headers={'Content-type': 'application/json', 'Accept': '*/*'},
             )
             log_queue.put(f'[Server Response] {resp.status_code} {resp.text[:200]}\n')
+            # 업로드가 끝난 김에 AI 리포트도 미리 만들어 둔다. main.py 와 같은
+            # 동작이어야 한다 — 한쪽만 배선하면 그쪽으로 올린 측정만 리포트가 없다.
+            request_ai_report(ip, resp, log=lambda m: log_queue.put(m + '\n'))
         except Exception as e:
             log_queue.put(f'[Server Error] {e}\n')
     else:
