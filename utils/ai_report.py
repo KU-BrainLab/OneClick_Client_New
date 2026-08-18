@@ -62,7 +62,7 @@ def _poll(server, pk, log):
         except ValueError:
             state = None
         if state == 'not_started':
-            log('[AI리포트] 서버에 생성 기록이 없습니다. 중단합니다.')
+            log('[AI report] 서버에 생성 기록이 없습니다. 중단합니다.')
             return False
     return False
 
@@ -77,30 +77,30 @@ def request_ai_report(server, create_response, log=print):
     """
     pk = extract_pk(create_response)
     if pk is None:
-        log('[AI리포트] 응답에서 실험 번호를 찾지 못해 생성을 건너뜁니다. '
+        log('[AI report] 응답에서 실험 번호를 찾지 못해 생성을 건너뜁니다. '
             '(서버가 구버전이면 pk 를 돌려주지 않습니다)')
         return False
 
-    log('[AI리포트] 실험 {} 리포트 생성 시작 — 3~4분 걸립니다.'.format(pk))
+    log('[AI report] Experiment {} Report Generating... — It takes 3~4 minutes'.format(pk))
     started = time.time()
     try:
         r = requests.post(_report_url(server, pk), timeout=POST_TIMEOUT_SEC)
         if r.status_code == 200:
-            log('[AI리포트] 완료 ({:.0f}초)'.format(time.time() - started))
+            log('[AI report] Complete! ({:.0f}s)'.format(time.time() - started))
             return True
         # 서버가 명확히 거절한 경우다. 폴링해도 결과가 생기지 않는다.
         if r.status_code in (400, 401, 403, 404):
-            log('[AI리포트] 서버 거절 {} — {}'.format(r.status_code, r.text[:200]))
+            log('[AI report] 서버 거절 {} — {}'.format(r.status_code, r.text[:200]))
             return False
-        log('[AI리포트] 서버 응답 {} — 결과를 확인해 봅니다.'.format(r.status_code))
+        log('[AI report] 서버 응답 {} — 결과를 확인해 봅니다.'.format(r.status_code))
     except requests.RequestException as e:
         # 연결이 끊겨도 서버는 계속 만들고 있다. 여기서 포기하지 않는다.
-        log('[AI리포트] 연결 끊김({}) — 결과를 기다립니다.'.format(type(e).__name__))
+        log('[AI report] 연결 끊김({}) — 결과를 기다립니다.'.format(type(e).__name__))
 
     if _poll(server, pk, log):
-        log('[AI리포트] 완료 ({:.0f}초, 회수)'.format(time.time() - started))
+        log('[AI report] 완료 ({:.0f}초, 회수)'.format(time.time() - started))
         return True
 
-    log('[AI리포트] 생성하지 못했습니다. 측정 데이터는 정상 업로드됐으니 '
+    log('[AI report] 생성하지 못했습니다. 측정 데이터는 정상 업로드됐으니 '
         '웹에서 리포트를 다시 만들 수 있습니다.')
     return False
