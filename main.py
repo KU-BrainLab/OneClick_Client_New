@@ -15,6 +15,8 @@ from utils.ecg.feature_extraction import ECGFeatureExtractor
 import torch
 import pickle
 
+from utils.ai_report import request_ai_report
+
 def get_args():
     ### Subject Informations ###
     ### 아래 기본값은 형식을 보여주기 위한 예시다. 실제 피험자 정보는 커밋하지 말고 ###
@@ -302,3 +304,8 @@ if __name__ == '__main__':
                                             'stimulus_info': args.STIMULUS}),
                         headers=headers)
         print(oo)
+
+        # 업로드가 끝난 김에 AI 리포트도 미리 만들어 둔다. 웹에서 열 때
+        # 3~4분을 기다리지 않아도 되고, 여긴 아무도 기다리지 않는다.
+        # 실패해도 측정 데이터는 이미 올라가 있으므로 진행을 막지 않는다.
+        request_ai_report(ip, oo)
