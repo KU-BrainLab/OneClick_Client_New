@@ -27,7 +27,12 @@ POLL_LIMIT_SEC = 420
 
 
 def _report_url(server, pk):
-    return 'http://{}/api/v1/exp/{}/ai-report/'.format(server, pk)
+    """생성 전용 창구.
+
+    /ai-report/ 는 로그인을 요구한다(리포트 본문에 환자 정보가 들어가므로).
+    측정 장비는 토큰이 없으므로, 본문 없이 생성만 맡기는 이 경로를 쓴다.
+    """
+    return 'http://{}/api/v1/exp/{}/ai-report/generate/'.format(server, pk)
 
 
 def extract_pk(create_response):
@@ -51,7 +56,7 @@ def _poll(server, pk, log):
             continue                      # 일시적 네트워크 오류는 넘기고 계속 기다린다
         if r.status_code == 200:
             return True
-        # 404 는 아직 생성 중이거나 시작 전이다. 어느 쪽인지 서버가 알려준다.
+        # 404 면 아직 없다. 생성 중인지 시작도 안 했는지 서버가 알려준다.
         try:
             state = r.json().get('status')
         except ValueError:
