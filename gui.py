@@ -23,7 +23,7 @@ class QueueStream:
 def run_analysis(args_dict, log_queue):
     import numpy as np
     import requests
-    from utils.ai_report import request_ai_report
+    from utils.ai_report import request_ai_report, build_questionnaire
     from utils.ecg.clean_up import CleanUpECG
     from utils.ecg.feature_extraction import ECGFeatureExtractor
     from main import (NpEncoder, eeg_content_bulk, eeg_diff_content_bulk,
@@ -136,6 +136,9 @@ def run_analysis(args_dict, log_queue):
                     'sex': s_index.index(sex),
                     'hrv': hrv_payload, 'eeg': eeg_payload,
                     'report': report_payload, 'trigger': trigger,
+                    # 설문을 측정과 함께 올려야 리포트를 만들 때 데이터가 완성된다.
+                    # 웹에서 나중에 넣으면 그 전에 만들어진 리포트에는 7장이 빈다.
+                    'questionnaire': args_dict.get('QUESTIONNAIRE'),
                 }),
                 headers={'Content-type': 'application/json', 'Accept': '*/*'},
             )
@@ -190,6 +193,12 @@ class App(tk.Tk):
             ('수면단계 모델 (SLEEP_MODEL)', 'sleep_model', 'combo',
                                         ['neuronet', 'synthsleepnet']),
         ]
+
+        # 설문 점수. 모르는 항목은 비워 둔다 — 0 을 넣으면 실제로 0점을
+        # 측정한 것으로 저장되고, 리포트가 그걸 근거로 해석을 쓴다.
+        from utils.ai_report import QUESTIONNAIRE_SCALES
+        fields += [('{} — {}'.format(label, desc), 'q_' + key, 'entry', None)
+                   for key, label, desc in QUESTIONNAIRE_SCALES]
 
         self._vars = {}
         for row_i, (label, key, wtype, opts) in enumerate(fields):
@@ -267,6 +276,13 @@ class App(tk.Tk):
 
         self._file_var = self._vars['fname']
 
+    def _collect_questionnaire(self):
+        """설문 입력칸에서 값을 모은다. 빈 칸은 빼고, 없으면 None."""
+        from utils.ai_report import build_questionnaire, QUESTIONNAIRE_SCALES
+        return build_questionnaire(
+            {key: self._vars['q_' + key].get().strip()
+             for key, _label, _desc in QUESTIONNAIRE_SCALES})
+
     def _browse_file(self):
         path = filedialog.askopenfilename(
             initialdir=os.path.abspath('data'),
@@ -298,6 +314,7 @@ class App(tk.Tk):
             'DEBUG_MODE':       self._debug_var.get(),
             'CROP_MODE':        self._crop_var.get(),
             'SLEEP_MODEL':      self._vars['sleep_model'].get(),
+            'QUESTIONNAIRE':    self._collect_questionnaire(),
         }
 
         self._run_btn.config(state='disabled', text='running...')

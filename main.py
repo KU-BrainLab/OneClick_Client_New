@@ -15,7 +15,8 @@ from utils.ecg.feature_extraction import ECGFeatureExtractor
 import torch
 import pickle
 
-from utils.ai_report import request_ai_report
+from utils.ai_report import (request_ai_report, build_questionnaire,
+                             QUESTIONNAIRE_SCALES)
 
 def get_args():
     ### Subject Informations ###
@@ -32,6 +33,15 @@ def get_args():
     parser.add_argument('--SEX', default='male', choices=['male', 'female'], type=str)
     parser.add_argument('--FILE_NAME', default='2026-01-01-0900.csv', type=str)
     parser.add_argument('--STIMULUS', default='General Sleep', type=lambda s: s.replace('\\n', '\n'))
+
+    ### 설문 점수 ###
+    ### 웹에서 따로 넣으면 그 전에 만들어진 리포트에는 7장이 빈다. ###
+    ### 여기서 같이 올리면 리포트를 만들 때 데이터가 완성돼 있다. ###
+    ### 모르는 항목은 비워 둘 것 — 0 을 넣으면 실제 측정된 0점으로 저장된다. ###
+    ###   예: --ISI 11 --PSQI 10 --BAI 8 ###
+    for _key, _label, _desc in QUESTIONNAIRE_SCALES:
+        parser.add_argument('--' + _key, default=None, type=str,
+                            help='{} {}'.format(_label, _desc))
 
     ### DEBUG_MODE ###
     ### False일때만 서버로 전송됨 ###
@@ -301,6 +311,9 @@ if __name__ == '__main__':
                                             'eeg': eeg_payload,
                                             'report': report_payload,
                                             'trigger': trigger,
+                                            'questionnaire': build_questionnaire(
+                                                {k: getattr(args, k)
+                                                 for k, _l, _d in QUESTIONNAIRE_SCALES}),
                                             'stimulus_info': args.STIMULUS}),
                         headers=headers)
         print(oo)

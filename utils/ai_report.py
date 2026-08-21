@@ -26,6 +26,38 @@ POLL_INTERVAL_SEC = 10
 POLL_LIMIT_SEC = 420
 
 
+# 설문 척도. 서버 Questionnaire 모델과 이름을 맞춘다.
+# (라벨, 키, 무엇을 재나) — GUI 입력 항목과 --인자 이름이 여기서 파생된다.
+QUESTIONNAIRE_SCALES = (
+    ('IRLS',      'IRLS',      '하지불안 (0~30)'),
+    ('PSQI',      'PSQI',      '수면의 질 (0~21)'),
+    ('ISI',       'ISI',       '불면 심각도 (0~28)'),
+    ('ESS',       'ESS',       '주간 졸림 (0~24)'),
+    ('COMPASS31', 'COMPASS31', '자율신경 증상 (0~100)'),
+    ('BAI',       'BAI',       '불안 (0~63)'),
+    ('BDI2',      'BDI-II',    '우울 (0~63)'),
+)
+
+
+def build_questionnaire(values):
+    """입력값에서 서버로 보낼 설문 dict 를 만든다. 값이 하나도 없으면 None.
+
+    빈 칸을 0 으로 채우면 안 된다. 리포트에서 '전부 0점'이 실제 측정처럼 보이고,
+    모델이 그걸 근거로 해석을 지어낸다. 안 넣은 항목은 아예 빼서 서버가
+    '데이터 없음'으로 처리하게 한다.
+
+    values : {'IRLS': 6, 'PSQI': '10', 'ISI': None, ...} 형태.
+             None 이나 빈 문자열은 건너뛴다.
+    """
+    out = {}
+    for key, _label, _desc in QUESTIONNAIRE_SCALES:
+        v = values.get(key)
+        if v is None or (isinstance(v, str) and not v.strip()):
+            continue
+        out[key] = v
+    return out or None
+
+
 def _report_url(server, pk):
     """생성 전용 창구.
 
