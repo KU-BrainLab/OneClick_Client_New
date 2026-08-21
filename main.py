@@ -15,40 +15,31 @@ from utils.ecg.feature_extraction import ECGFeatureExtractor
 import torch
 import pickle
 
-from utils.ai_report import (request_ai_report, build_questionnaire,
-                             QUESTIONNAIRE_SCALES)
+from utils.ai_report import (request_ai_report, build_questionnaire, QUESTIONNAIRE_SCALES)
 
 def get_args():
-    ### Subject Informations ###
-    ### 아래 기본값은 형식을 보여주기 위한 예시다. 실제 피험자 정보는 커밋하지 말고 ###
-    ### 명령행 인자로 넘길 것 (이름+생년월일은 개인을 특정할 수 있다) ###
-    ###   python main.py --NAME 홍길동 --AGE 30 --BIRTH 1996-01-01 \ ###
-    ###                  --SEX male --MEASUREMENT_DATE "2026-01-01 09:00" \ ###
-    ###                  --FILE_NAME 2026-01-01-0900.csv ###
+    
     parser = argparse.ArgumentParser()
-    parser.add_argument('--NAME', default='예시피험자', type=str)
-    parser.add_argument('--AGE', default= 30, type=int)
-    parser.add_argument('--MEASUREMENT_DATE', default='2026-01-01 09:00', type=str)
-    parser.add_argument('--BIRTH', default='1996-01-01', type=str)
+    parser.add_argument('--NAME', default='주재형', type=str)
+    parser.add_argument('--AGE', default=32, type=int)
+    parser.add_argument('--MEASUREMENT_DATE', default='2026-08-14 15:32', type=str)
+    parser.add_argument('--BIRTH', default='1995-04-01', type=str)
     parser.add_argument('--SEX', default='male', choices=['male', 'female'], type=str)
-    parser.add_argument('--FILE_NAME', default='2026-01-01-0900.csv', type=str)
+    parser.add_argument('--FILE_NAME', default='2026-08-14-1532.csv', type=str)
     parser.add_argument('--STIMULUS', default='General Sleep', type=lambda s: s.replace('\\n', '\n'))
 
-    ### 설문 점수 ###
-    ### 아래 값을 직접 고쳐 넣는다. 명령행 인자(--ISI 11)로 덮어쓸 수도 있다. ###
-    ### 모르는 항목은 None 으로 둘 것 — 0 을 넣으면 실제로 0점을 측정한 것으로 ###
-    ### 저장되고, 리포트가 그걸 근거로 해석을 쓴다. ###
-    ### 여기서 같이 올려야 리포트를 만들 때 데이터가 완성된다. 웹에서 나중에 ###
-    ### 넣으면 그 전에 만들어진 리포트에는 임상 배경(7장)이 빈다. ###
+    # 설문조사 지표
+    # 측정안한건 None, 지표가 0인것과 구분하기
     questionnaire_defaults = {
-        'IRLS':      None,   # 하지불안       0~30
-        'PSQI':      None,   # 수면의 질      0~21
-        'ISI':       None,   # 불면 심각도    0~28
-        'ESS':       None,   # 주간 졸림      0~24
-        'COMPASS31': None,   # 자율신경 증상  0~100
-        'BAI':       None,   # 불안          0~63
-        'BDI2':      None,   # 우울          0~63
+        'IRLS':      1,
+        'PSQI':      2,
+        'ISI':       3,
+        'ESS':       4,
+        'COMPASS31': None,
+        'BAI':       None,
+        'BDI2':      None,
     }
+
     for _key, _label, _desc in QUESTIONNAIRE_SCALES:
         parser.add_argument('--' + _key, type=str,
                             default=questionnaire_defaults.get(_key),
@@ -330,6 +321,6 @@ if __name__ == '__main__':
         print(oo)
 
         # 업로드가 끝난 김에 AI 리포트도 미리 만들어 둔다. 웹에서 열 때
-        # 3~4분을 기다리지 않아도 되고, 여긴 아무도 기다리지 않는다.
+        # 3~4분을 기다리지 않아도 되고, 여기선 아무도 기다리지 않는다.
         # 실패해도 측정 데이터는 이미 올라가 있으므로 진행을 막지 않는다.
         request_ai_report(ip, oo)
