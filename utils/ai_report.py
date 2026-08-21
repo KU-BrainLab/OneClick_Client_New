@@ -29,7 +29,7 @@ POLL_LIMIT_SEC = 420
 # 설문 척도. 서버 Questionnaire 모델과 이름을 맞춘다.
 # (라벨, 키, 무엇을 재나) — GUI 입력 항목과 --인자 이름이 여기서 파생된다.
 QUESTIONNAIRE_SCALES = (
-    ('IRLS',      'IRLS',      '하지불안 (0~30)'),
+    ('IRLS',      'IRLS',      '하지불안 (0~40)'),
     ('PSQI',      'PSQI',      '수면의 질 (0~21)'),
     ('ISI',       'ISI',       '불면 심각도 (0~28)'),
     ('ESS',       'ESS',       '주간 졸림 (0~24)'),
