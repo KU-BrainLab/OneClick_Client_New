@@ -35,12 +35,23 @@ def get_args():
     parser.add_argument('--STIMULUS', default='General Sleep', type=lambda s: s.replace('\\n', '\n'))
 
     ### 설문 점수 ###
-    ### 웹에서 따로 넣으면 그 전에 만들어진 리포트에는 7장이 빈다. ###
-    ### 여기서 같이 올리면 리포트를 만들 때 데이터가 완성돼 있다. ###
-    ### 모르는 항목은 비워 둘 것 — 0 을 넣으면 실제 측정된 0점으로 저장된다. ###
-    ###   예: --ISI 11 --PSQI 10 --BAI 8 ###
+    ### 아래 값을 직접 고쳐 넣는다. 명령행 인자(--ISI 11)로 덮어쓸 수도 있다. ###
+    ### 모르는 항목은 None 으로 둘 것 — 0 을 넣으면 실제로 0점을 측정한 것으로 ###
+    ### 저장되고, 리포트가 그걸 근거로 해석을 쓴다. ###
+    ### 여기서 같이 올려야 리포트를 만들 때 데이터가 완성된다. 웹에서 나중에 ###
+    ### 넣으면 그 전에 만들어진 리포트에는 임상 배경(7장)이 빈다. ###
+    questionnaire_defaults = {
+        'IRLS':      None,   # 하지불안       0~30
+        'PSQI':      None,   # 수면의 질      0~21
+        'ISI':       None,   # 불면 심각도    0~28
+        'ESS':       None,   # 주간 졸림      0~24
+        'COMPASS31': None,   # 자율신경 증상  0~100
+        'BAI':       None,   # 불안          0~63
+        'BDI2':      None,   # 우울          0~63
+    }
     for _key, _label, _desc in QUESTIONNAIRE_SCALES:
-        parser.add_argument('--' + _key, default=None, type=str,
+        parser.add_argument('--' + _key, type=str,
+                            default=questionnaire_defaults.get(_key),
                             help='{} {}'.format(_label, _desc))
 
     ### DEBUG_MODE ###
