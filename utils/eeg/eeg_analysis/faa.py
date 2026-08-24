@@ -9,7 +9,9 @@ import os
 import base64
 
 def get_frontal_alpha_asymmetry(epoch_data, uuid, trigger):
-    psd_names = ['faa_baseline', 'faa_stimulation1', 'faa_recovery1', 'faa_stimulation2', 'faa_recovery2']
+    from utils.phase_defs import faa_names
+    _n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 1
+    psd_names = faa_names(_n_phases)
     files_dict = {name: None for name in psd_names}
 
     def get_psd_analysis_func(data_, sfreq, low, high):
@@ -89,7 +91,7 @@ def get_frontal_alpha_asymmetry(epoch_data, uuid, trigger):
     eeg_info = epoch_data.info
     epoch_data = epoch_data.get_data()
     n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 1
-    for i in range(5):
+    for i in range(len(psd_names)):
         if i >= n_phases:
             continue  # 존재하지 않는 phase → files_dict 해당 키는 None으로 유지
         start = trigger[i] * 2

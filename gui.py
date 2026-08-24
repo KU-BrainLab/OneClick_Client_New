@@ -24,6 +24,7 @@ def run_analysis(args_dict, log_queue):
     import numpy as np
     import requests
     from utils.ai_report import request_ai_report, build_questionnaire
+    from utils.phase_defs import DIFF_KEYS
     from utils.ecg.clean_up import CleanUpECG
     from utils.ecg.feature_extraction import ECGFeatureExtractor
     from main import (NpEncoder, eeg_content_bulk, eeg_diff_content_bulk,
@@ -92,15 +93,12 @@ def run_analysis(args_dict, log_queue):
         'psd': eeg_results['psd_result'],
         'sleep_staging': eeg_results['sleep_stage'],
         'frontal_limbic': eeg_results['frontal_limbic'],
-        'baseline':      eeg_content_bulk(eeg_results, 'baseline'),
-        'stimulation1':  eeg_content_bulk(eeg_results, 'stimulation1'),
-        'recovery1':     eeg_content_bulk(eeg_results, 'recovery1'),
-        'stimulation2':  eeg_content_bulk(eeg_results, 'stimulation2'),
-        'recovery2':     eeg_content_bulk(eeg_results, 'recovery2'),
-        'diff1': eeg_diff_content_bulk(eeg_results, 'diff1'),
-        'diff2': eeg_diff_content_bulk(eeg_results, 'diff2'),
-        'diff3': eeg_diff_content_bulk(eeg_results, 'diff3'),
-        'diff4': eeg_diff_content_bulk(eeg_results, 'diff4'),
+        # phase·diff 키는 모드(1/3/5/6-phase)에 따라 다르다. 어떤 phase 가
+        # 실제로 분석됐는지는 eeg_results['topography'] 의 키가 그대로 말해준다.
+        **{name: eeg_content_bulk(eeg_results, name)
+           for name in eeg_results['topography'].keys()},
+        **{k: eeg_diff_content_bulk(eeg_results, k)
+           for k in DIFF_KEYS if k in eeg_results},
         'faa': eeg_results['faa'],
         'psd_spectrogram': eeg_results['psd_spectrogram'],
     }, cls=NpEncoder)

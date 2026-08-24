@@ -46,7 +46,8 @@ def get_psd_diff_analysis(epoch_data, uuid, trigger=None):
     epoch_data = copy.deepcopy(epoch_data)
     info = epoch_data.info
     epoch_data = epoch_data.get_data()
-    exp_names = ['diff1', 'diff2', 'diff3', 'diff4']
+    from utils.phase_defs import DIFF_KEYS
+    exp_names = list(DIFF_KEYS)   # 6-phase 는 인접 쌍이 5개라 diff5 까지 필요
     freq_bands = {'delta': (0.5, 4), 'theta': (4, 8), 'alpha': (8, 12), 'beta': (12, 30), 'gamma': (30, 40), 'sigma': (12, 15)}
     files = {exp_name: {band_name: None for band_name in freq_bands.keys()} for exp_name in exp_names}
 
@@ -108,7 +109,13 @@ def get_psd_diff_analysis(epoch_data, uuid, trigger=None):
     files['quantification'] = quant
 
     # ── 대역별 상대 파워 비율 데이터 저장 (출력은 analysis.py 끝에서 일괄 처리) ──
-    phase_names = ['baseline', 'stimulation', 'recovery', 'stimulation2', 'recovery2']
+    if n_phases == 6:
+        from utils.phase_defs import phase_names as _phase_names
+        phase_names = _phase_names(6)
+    else:
+        # 5-phase 이하의 기존 표기(첫 자극='stimulation')는 analysis.py 콘솔
+        # 요약(avg B/S/R)이 이 키를 찾으므로 그대로 둔다.
+        phase_names = ['baseline', 'stimulation', 'recovery', 'stimulation2', 'recovery2']
     band_ratios = {}
     for pi, ep in enumerate(epochs):
         pname = phase_names[pi] if pi < len(phase_names) else f'phase{pi}'

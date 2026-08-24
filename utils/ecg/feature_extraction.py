@@ -208,92 +208,55 @@ class ECGFeatureExtractor:
         return im_b64
 
     def extract(self):
+        from utils.phase_defs import PHASE_SETS, PHASE_TITLES
+
         n_phases = len(self.filtered_trigger)
         nni, rmssd = self.whole()
 
-        baseline_hrv, baseline_psd = self.baseline()
-        baseline_hrv.update({
-            'psd': baseline_psd,
-            'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Baseline.png')),
-            'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Baseline.png')),
-        })
-
-        if n_phases >= 3:
-            stimulation1_hrv, stimulation1_psd = self.stimulation1()
-            stimulation1_hrv.update({
-                'psd': stimulation1_psd,
-                'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Stimulation1.png')),
-                'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Stimulation1.png')),
-            })
-            recovery1_hrv, recovery1_psd = self.recovery1()
-            recovery1_hrv.update({
-                'psd': recovery1_psd,
-                'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Recovery1.png')),
-                'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Recovery1.png')),
-            })
+        # 지원 모드(1/3/5/6)는 그 구성 그대로. 그 밖의 개수는 기존 동작과
+        # 동일하게 가장 가까운 아래 모드로 잘라 처리한다 (4 -> 3-phase, 7+ -> 5).
+        if n_phases in PHASE_SETS:
+            names = PHASE_SETS[n_phases]
+        elif n_phases >= 5:
+            names = PHASE_SETS[5]
+        elif n_phases >= 3:
+            names = PHASE_SETS[3]
         else:
-            stimulation1_hrv = {}
-            recovery1_hrv = {}
+            names = PHASE_SETS[1]
 
-        if n_phases >= 5:
-            stimulation2_hrv, stimulation2_psd = self.stimulation2()
-            stimulation2_hrv.update({
-                'psd': stimulation2_psd,
-                'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Stimulation2.png')),
-                'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Stimulation2.png')),
-            })
-            recovery2_hrv, recovery2_psd = self.recovery2()
-            recovery2_hrv.update({
-                'psd': recovery2_psd,
-                'heart_rate': self.get_image_encoder(os.path.join(self.save_path, 'fig1_Recovery2.png')),
-                'comparison': self.get_image_encoder(os.path.join(self.save_path, 'fig2_Recovery2.png')),
-            })
-        else:
-            stimulation2_hrv = {}
-            recovery2_hrv = {}
+        # 서버 5-phase 계약 키는 항상 존재해야 한다 (없는 phase 는 빈 dict —
+        # 구버전 서버가 .get() 없이 읽는 키가 있어 비워서라도 보낸다).
+        sample = {'nni': nni, 'rmssd': rmssd}
+        for key in PHASE_SETS[5]:
+            sample[key] = {}
 
-        sample = {
-            'nni': nni, 'rmssd': rmssd,
-            'baseline': baseline_hrv,
-            'stimulation1': stimulation1_hrv,
-            'recovery1': recovery1_hrv,
-            'stimulation2': stimulation2_hrv,
-            'recovery2': recovery2_hrv
-        }
+        for i, key in enumerate(names):
+            title = PHASE_TITLES[key]
+            hrv, psd = self._phase_hrv(i, title)
+            hrv.update({
+                'psd': psd,
+                'heart_rate': self.get_image_encoder(
+                    os.path.join(self.save_path, 'fig1_%s.png' % title)),
+                'comparison': self.get_image_encoder(
+                    os.path.join(self.save_path, 'fig2_%s.png' % title)),
+            })
+            sample[key] = hrv
 
         self.filtered_trigger //= 7500
         return sample, self.filtered_trigger.tolist()
 
-    # baseline-stimulation1  부분만 feature extract 해서 저장
-    def baseline(self):
-        print('baseline')
-        end_idx = self.filtered_trigger[1] if len(self.filtered_trigger) > 1 else len(self.ecg)
-        baseline_ecg = self.ecg[:end_idx]
-        return self.feature_extract(baseline_ecg, phase='Baseline')
+    def _phase_hrv(self, i, title):
+        """i번째 phase 구간의 HRV. 구간 = [trigger[i], trigger[i+1] 또는 끝).
 
-    # stimulation1-recovery1 부분만 feature extract 해서 저장
-    def stimulation1(self):
-        print('stimulation1')
-        stimulation1_ecg = self.ecg[self.filtered_trigger[1]:self.filtered_trigger[2]]
-        return self.feature_extract(stimulation1_ecg, phase='Stimulation1')
-
-    # recovery1-stimulation2 부분만 feature extract 해서 저장
-    def recovery1(self):
-        print('recovery1')
-        end_idx = self.filtered_trigger[3] if len(self.filtered_trigger) > 3 else len(self.ecg)
-        recovery1_ecg = self.ecg[self.filtered_trigger[2]:end_idx]
-        return self.feature_extract(recovery1_ecg, phase='Recovery1')
-
-    # stimulation2-recovery2  부분만 feature extract 해서 저장
-    def stimulation2(self):
-        print('stimulation2')
-        stimulation2_ecg = self.ecg[self.filtered_trigger[3]:self.filtered_trigger[4]]
-        return self.feature_extract(stimulation2_ecg, phase='Stimulation2')
-
-    # recovery2-end  부분만 feature extract 해서 저장
-    def recovery2(self):
-        recovery2_ecg = self.ecg[self.filtered_trigger[4]:]
-        return self.feature_extract(recovery2_ecg, phase='Recovery2')
+        예전의 baseline()~recovery2() 메서드 다섯 개를 일반화한 것이다.
+        cleaned CSV 는 첫 트리거가 0행에 오도록 잘려 있어(clean_up.py)
+        trigger[0] == 0 이므로 baseline 도 같은 식으로 계산된다.
+        """
+        print(title.lower())
+        start = self.filtered_trigger[i] if i > 0 else 0
+        end = (self.filtered_trigger[i + 1]
+               if len(self.filtered_trigger) > i + 1 else len(self.ecg))
+        return self.feature_extract(self.ecg[start:end], phase=title)
 
     def whole(self):
         _, filtered_ecg, rpeaks = biosppy.signals.ecg.ecg(self.ecg, show=False, sampling_rate=self.sfreq)[:3]

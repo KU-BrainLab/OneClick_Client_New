@@ -97,13 +97,7 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
     brain_report_summary = brain_sleep_stage['sleep_summary']
 
     # diff1~4 조립: 서버 eeg_diff_obj_save 구조에 맞게 매핑
-    _DIFF_KEYS = ['diff1', 'diff2', 'diff3', 'diff4']
-    _PHASE_PAIRS = [
-        ('stimulation 1', 'baseline'),
-        ('recovery 1',    'stimulation 1'),
-        ('stimulation 2', 'recovery 1'),
-        ('recovery 2',    'stimulation 2'),
-    ]
+    from utils.phase_defs import DIFF_KEYS as _DIFF_KEYS, diff_pairs as _diff_pairs
     _BANDS_LOWER = {
         'Delta': 'delta', 'Theta': 'theta', 'Alpha': 'alpha',
         'Sigma': 'sigma', 'Beta': 'beta',   'Gamma': 'gamma',
@@ -111,11 +105,13 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
     _SS_MAP = {'W': 'wake', 'N1': 'n1', 'N2': 'n2', 'N3': 'n3', 'REM': 'rem'}
 
     n_phases = len(trigger) - 1  # trigger에 end가 append된 후 기준
+    _pairs = _diff_pairs(n_phases, spaced=True)
     diffs = []
-    for i, (targ, ref) in enumerate(_PHASE_PAIRS):
-        if i >= n_phases - 1:
+    for i in range(len(_DIFF_KEYS)):
+        if i >= len(_pairs):
             diffs.append({})
             continue
+        targ, ref = _pairs[i]
         key = _DIFF_KEYS[i]
         pair_fn = f'{targ.replace(" ", "_")}_vs_{ref.replace(" ", "_")}'
         d = {}
@@ -131,7 +127,7 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
                 d[f'topography_{band_lower}_{ss_key}']   = brain_delta_power_topo.get(f'topography_{pair_fn}_{band}_{ss}', topo_all)
                 d[f'connectivity_{band_lower}_{ss_key}'] = brain_delta_connectivity.get(f'connectivity_{pair_fn}_{band}_{ss}', conn_all)
         diffs.append(d)
-    diff1, diff2, diff3, diff4 = diffs
+    diff1, diff2, diff3, diff4, diff5 = diffs
 
     # ══════════════════════════════════════════════════════════════
     #  최종 요약 출력
@@ -179,6 +175,7 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
         'diff2': diff2,
         'diff3': diff3,
         'diff4': diff4,
+        'diff5': diff5,
         'psd_spectrogram': brain_spectrogram,
         'faa' : brain_faa,
         'spindle_coupling': brain_spindle_coupling,

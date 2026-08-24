@@ -14,7 +14,9 @@ import base64
 COMPUTE_AEC   = True
 SPECTRAL_FCS  = []
 METHODS    = SPECTRAL_FCS + (['AEC'] if COMPUTE_AEC else [])
-STAGES = ['baseline', 'stimulation 1', 'recovery 1', 'stimulation 2', 'recovery 2']
+# 5-phase 와 6-phase 키의 합집합 (brain_delta_power_topo.STAGES 와 같은 이유).
+STAGES = ['baseline', 'stimulation 1', 'recovery 1', 'stimulation 2', 'recovery 2',
+          'stimulation 3', 'stimulation 4', 'recovery']
 SLEEP_STAGES = ['W', 'N1', 'N2', 'N3', 'REM']
 SLEEP_STAGE_NAMES = {0: 'W', 1: 'N1', 2: 'N2', 3: 'N3', 4: 'REM'}
 FC_EPOCH_LEN  = 10.0
@@ -189,8 +191,10 @@ def get_brain_delta_connectivity(epoch_data, uuid, trigger, sleep_labels_int):
 
     os.makedirs(os.path.join('image', 'delta_connectivity'), exist_ok=True)
 
-    stage_names = ['baseline', 'stimulation 1', 'recovery 1', 'stimulation 2', 'recovery 2']
+    from utils.phase_defs import phase_names_spaced, diff_pairs
     n_phases = len(trigger) - 1
+    stage_names = phase_names_spaced(n_phases)
+    pairs = diff_pairs(n_phases, spaced=True)
     boundaries = {}
     for i in range(n_phases):
         boundaries[stage_names[i]] = (trigger[i], trigger[i+1])
@@ -209,7 +213,7 @@ def get_brain_delta_connectivity(epoch_data, uuid, trigger, sleep_labels_int):
         method_db = fc_db.get(method, {})
         all_deltas = []
         for band in BANDS:
-            for targ, ref in PHASE_PAIRS:
+            for targ, ref in pairs:
                 for ss in SLEEP_STAGES + ['all']:
                     ref_key  = (ref,  ss)
                     targ_key = (targ, ss)
@@ -227,7 +231,7 @@ def get_brain_delta_connectivity(epoch_data, uuid, trigger, sleep_labels_int):
     for method in METHODS:
         method_db = fc_db.get(method, {})
 
-        for targ, ref in PHASE_PAIRS:
+        for targ, ref in pairs:
             pair_fn = f'{targ.replace(" ", "_")}_vs_{ref.replace(" ", "_")}'
             for ss in SLEEP_STAGES + ['all']:
                 ref_key  = (ref,  ss)

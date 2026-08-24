@@ -25,7 +25,9 @@ def get_brain_connectivity(epoch_data, uuid, type, trigger):
     epoch_data = epoch_data.get_data()
     sample_size = epoch_data.shape[0]
     step = sample_size // 5
-    exp_names = ['baseline', 'stimulation1', 'recovery1', 'stimulation2', 'recovery2']
+    from utils.phase_defs import phase_names as _phase_names
+    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 1
+    exp_names = _phase_names(n_phases)
     bands = {'delta': [0.5, 4], 'theta': [4, 8], 'alpha': [8, 12], 'beta': [12, 30], 'gamma': [30, 40], 'sigma': [12, 15]}
     files = {exp_name: {band_name: None for band_name in bands.keys()} for exp_name in exp_names}
 
@@ -39,8 +41,7 @@ def get_brain_connectivity(epoch_data, uuid, type, trigger):
     start_arr = [0, int(sample_size * 0.2) , int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9)] 
     end_arr = [int(sample_size * 0.2), int(sample_size * 0.5), int(sample_size * 0.6), int(sample_size * 0.9), sample_size]        
     
-    n_phases = len(trigger) - 1 if (trigger is not None and len(trigger) > 1) else 1
-    for i in range(5):
+    for i in range(len(exp_names)):
         if i >= n_phases:
             for band_name in bands:
                 files[exp_names[i]][band_name] = ''

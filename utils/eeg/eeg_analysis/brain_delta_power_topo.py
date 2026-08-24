@@ -21,7 +21,10 @@ FREQS_BANDS = {
     'Gamma': (30,  45),
 }
 
-STAGES = ['baseline', 'stimulation 1', 'recovery 1', 'stimulation 2', 'recovery 2']
+# 5-phase 와 6-phase 키의 합집합. 존재하지 않는 stage 는 epoch 마스크가
+# 비어 자동으로 건너뛰므로 합집합으로 두어도 안전하다.
+STAGES = ['baseline', 'stimulation 1', 'recovery 1', 'stimulation 2', 'recovery 2',
+          'stimulation 3', 'stimulation 4', 'recovery']
 
 BANDS = list(FREQS_BANDS.keys())
 
@@ -147,8 +150,10 @@ def get_brain_delta_power_topo(epochs, uuid, trigger, sleep_labels_int):
 
     os.makedirs(os.path.join('image', 'delta_power_topo'), exist_ok=True)
 
-    stage_names = ['baseline', 'stimulation 1', 'recovery 1', 'stimulation 2', 'recovery 2']
+    from utils.phase_defs import phase_names_spaced, diff_pairs
     n_phases = len(trigger) - 1
+    stage_names = phase_names_spaced(n_phases)
+    pairs = diff_pairs(n_phases, spaced=True)
     boundaries = {}
     for i in range(n_phases):
         boundaries[stage_names[i]] = (trigger[i], trigger[i+1])
@@ -164,7 +169,7 @@ def get_brain_delta_power_topo(epochs, uuid, trigger, sleep_labels_int):
 
     all_deltas = []
     for band in BANDS:
-        for targ, ref in PHASE_PAIRS:
+        for targ, ref in pairs:
             for ss in SLEEP_STAGES + ['all']:
                 ref_df  = df_power[(df_power['stage'] == ref)  & (df_power['sleep_stage'] == ss)]
                 targ_df = df_power[(df_power['stage'] == targ) & (df_power['sleep_stage'] == ss)]
@@ -181,7 +186,7 @@ def get_brain_delta_power_topo(epochs, uuid, trigger, sleep_labels_int):
     colormap = plt.cm.get_cmap('RdBu_r')
     print(f'    Power global vlim: ±{global_vlim:.4f}')
 
-    for targ, ref in PHASE_PAIRS:
+    for targ, ref in pairs:
         pair_fn = f'{targ.replace(" ", "_")}_vs_{ref.replace(" ", "_")}'
 
         for ss in SLEEP_STAGES + ['all']:

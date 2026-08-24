@@ -18,8 +18,9 @@ def get_brain_spectrogram(raw: mne.io.RawArray, uuid, trigger):
     win_n  = int(SPEC_WINDOW_SEC * sfreq)
     step_n = int(SPEC_STEP_SEC   * sfreq)
 
-    phase_names = ['baseline', 'stimulation1', 'recovery1', 'stimulation2', 'recovery2']
+    from utils.phase_defs import phase_names as _phase_names
     n_phases = len(trigger) - 1
+    phase_names = _phase_names(n_phases)
     boundaries = {}
     for i in range(n_phases):
         boundaries[phase_names[i]] = (trigger[i], trigger[i+1])

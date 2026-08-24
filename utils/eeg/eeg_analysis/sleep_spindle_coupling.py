@@ -320,11 +320,13 @@ def get_spindle_coupling_per_phase(filter_data, trigger, sleep_stages):
     -------
     dict  {phase_name: {'n2': {metrics}|None, 'all': {metrics}|None}}
     """
+    from utils.phase_defs import phase_names as _phase_names
     n_phases = len(trigger) - 1
+    names    = _phase_names(n_phases)
     results  = {}
 
     for i in range(n_phases):
-        phase_name = PHASE_NAMES[i] if i < len(PHASE_NAMES) else f'phase{i}'
+        phase_name = names[i]
         t_start    = trigger[i]
         t_end      = trigger[i + 1]
         print(f'[Spindle Coupling] {phase_name}  ({t_start}~{t_end} min) ...')

@@ -47,7 +47,8 @@ def get_diff_brain_connectivity(epoch_data, uuid, type, trigger):
     epoch_data = epoch_data.get_data()
     sample_size = epoch_data.shape[0]
     step = sample_size // 5
-    exp_names = ['diff1', 'diff2', 'diff3', 'diff4']
+    from utils.phase_defs import DIFF_KEYS
+    exp_names = list(DIFF_KEYS)   # 6-phase 는 인접 쌍이 5개라 diff5 까지 필요
     bands = {'delta': [0.5, 4], 'theta': [4, 8], 'alpha': [8, 12], 'beta': [12, 30], 'gamma': [30, 40], 'sigma': [12, 15]}
     files = {exp_name: {band_name: None for band_name in bands.keys()} for exp_name in exp_names}
 
