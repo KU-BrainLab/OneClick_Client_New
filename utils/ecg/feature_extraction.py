@@ -232,7 +232,9 @@ class ECGFeatureExtractor:
 
         for i, key in enumerate(names):
             title = PHASE_TITLES[key]
-            hrv, psd = self._phase_hrv(i, title)
+            # 구버전 recovery2() 는 이후 트리거가 더 있어도 무조건 녹화 끝까지
+            # 잘랐다(스퓨리어스 트리거 방어). 그 의미를 유지한다.
+            hrv, psd = self._phase_hrv(i, title, to_end=(key == 'recovery2'))
             hrv.update({
                 'psd': psd,
                 'heart_rate': self.get_image_encoder(
@@ -245,17 +247,21 @@ class ECGFeatureExtractor:
         self.filtered_trigger //= 7500
         return sample, self.filtered_trigger.tolist()
 
-    def _phase_hrv(self, i, title):
+    def _phase_hrv(self, i, title, to_end=False):
         """i번째 phase 구간의 HRV. 구간 = [trigger[i], trigger[i+1] 또는 끝).
 
         예전의 baseline()~recovery2() 메서드 다섯 개를 일반화한 것이다.
         cleaned CSV 는 첫 트리거가 0행에 오도록 잘려 있어(clean_up.py)
         trigger[0] == 0 이므로 baseline 도 같은 식으로 계산된다.
+        to_end 면 이후 트리거를 무시하고 녹화 끝까지 자른다 (구버전 recovery2).
         """
         print(title.lower())
         start = self.filtered_trigger[i] if i > 0 else 0
-        end = (self.filtered_trigger[i + 1]
-               if len(self.filtered_trigger) > i + 1 else len(self.ecg))
+        if to_end:
+            end = len(self.ecg)
+        else:
+            end = (self.filtered_trigger[i + 1]
+                   if len(self.filtered_trigger) > i + 1 else len(self.ecg))
         return self.feature_extract(self.ecg[start:end], phase=title)
 
     def whole(self):

@@ -101,6 +101,9 @@ def run_analysis(args_dict, log_queue):
            for k in DIFF_KEYS if k in eeg_results},
         'faa': eeg_results['faa'],
         'psd_spectrogram': eeg_results['psd_spectrogram'],
+        # main.py 와 같은 payload 여야 한다 — 이 키가 빠져 GUI 업로드만
+        # SO-Spindle Coupling 표가 비어 있었다.
+        'spindle_coupling': eeg_results['spindle_coupling'],
     }, cls=NpEncoder)
 
     report = eeg_results['sleep_report']

@@ -138,8 +138,14 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
         phases     = list(band_ratios.keys())
         band_names = list(next(iter(band_ratios.values())).keys())
         col_w = 13
-        # 평균 낼 phase — 실제로 존재하는 것만
+        # 평균 낼 phase — 실제로 존재하는 것만.
+        # 6-phase 는 키가 정식 표기(stimulation1~4)라 레거시 3종이 안 잡힌다.
+        # 그때는 전 구간 평균으로 바꾸고 라벨도 avg(all) 로 정직하게 붙인다.
         avg_keys = [p for p in avg_phases if p in band_ratios]
+        avg_label = 'avg(B/S/R)'
+        if len(avg_keys) < 3 and 'stimulation1' in band_ratios:
+            avg_keys = list(band_ratios.keys())
+            avg_label = 'avg(all)'
 
         total_w = col_w * len(phases) + (col_w + 2) if avg_keys else col_w * len(phases)
         print('\n' + '=' * (12 + total_w))
@@ -147,7 +153,7 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
         print('=' * (12 + total_w))
         header = f"  {'Band':<10}" + ''.join(f'{p:>{col_w}}' for p in phases)
         if avg_keys:
-            header += f"  {'avg(B/S/R)':>{col_w}}"
+            header += f"  {avg_label:>{col_w}}"
         print(header)
         print(f"  {'-' * (10 + total_w)}")
         for band in band_names:
