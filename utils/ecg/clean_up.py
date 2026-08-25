@@ -15,11 +15,40 @@ warnings.filterwarnings("ignore", category=matplotlib.MatplotlibDeprecationWarni
 
 
 class CleanUpECG:
+    @staticmethod
+    def _strip_line_quotes(data_path):
+        """줄 단위 큰따옴표 래핑을 감지해 벗겨낸다.
+
+        측정 파일을 Excel 계열 도구를 거쳐 옮기면 각 줄이 "..." 로 감싸진 채
+        저장되는 경우가 있다. brainflow 는 그걸 숫자가 아니라며
+        INVALID_ARGUMENTS_ERROR 로 거부한다 (실제로 겪은 장애다).
+        첫 바이트가 따옴표일 때만 전체를 정리하고, 원본은 .quoted.bak 으로
+        남긴다.
+        """
+        with open(data_path, 'rb') as f:
+            head = f.read(1)
+        if head != b'"':
+            return
+        print('[CleanUp] 줄 단위 따옴표 래핑 감지 — 제거 후 진행합니다 '
+              '(원본은 .quoted.bak 백업)')
+        tmp = data_path + '.fix.tmp'
+        newline = bytes([10])
+        with open(data_path, 'rb') as fin, open(tmp, 'wb') as fout:
+            for line in fin:
+                stripped = line.rstrip(bytes([13, 10]))   # CR/LF 만 제거 (탭은 데이터)
+                if (stripped.startswith(b'"') and stripped.endswith(b'"')
+                        and len(stripped) >= 2):
+                    stripped = stripped[1:-1]
+                fout.write(stripped + newline)
+        os.replace(data_path, data_path + '.quoted.bak')
+        os.replace(tmp, data_path)
+
     def __init__(self, data_path, sfreq=125):
         self.data_path = data_path
         self.sfreq = sfreq
 
         # 데이터 구조 = EEG (0-15열), ECG (16열), Trigger (-1열)
+        self._strip_line_quotes(data_path)
         data = DataFilter.read_file(data_path)
     
         # Trigger = {0: 기본, 1이상: 사용자 지정 trigger 신호}
