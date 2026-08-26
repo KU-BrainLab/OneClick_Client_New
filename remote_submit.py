@@ -101,8 +101,17 @@ def poll(server, job_id):
         try:
             r = requests.get('http://%s/jobs/%s' % (server, job_id), timeout=30)
             st = r.json()
-        except requests.RequestException as e:
+        except (requests.RequestException, ValueError) as e:
             print('[폴링] 연결 오류(%s) — 계속 시도합니다' % type(e).__name__)
+            time.sleep(POLL_INTERVAL_SEC)
+            continue
+
+        # Django 중계를 거칠 때는 분석 서버 장애가 예외가 아니라
+        # {'error': ...} JSON(502 등)으로 온다. 일시 장애로 보고 재시도한다 —
+        # 진행 상황(seen)을 지우면 복구 후 로그가 통째로 다시 찍힌다.
+        if st.get('status') is None:
+            print('[폴링] 중계 오류(%s) — 계속 시도합니다'
+                  % (st.get('error') or 'HTTP %s' % r.status_code))
             time.sleep(POLL_INTERVAL_SEC)
             continue
 
