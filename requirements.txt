@@ -23,6 +23,8 @@ huggingface-hub==0.24.5
 # 세 패키지는 반드시 함께 올리고 함께 내려야 한다.
 transformers==4.44.2
 peft==0.12.0
+# einops 도 SynthSleepNet(models/unified/model.py) 전용이다.
+einops==0.8.0
 idna==3.7
 importlib_resources==6.4.0
 Jinja2==3.1.4
