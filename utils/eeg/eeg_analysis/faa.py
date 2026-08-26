@@ -4,6 +4,7 @@ import mne
 import copy
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+from utils.eeg.eeg_analysis.mpl_compat import get_cmap
 import numpy as np
 import os
 import base64
@@ -56,7 +57,7 @@ def get_frontal_alpha_asymmetry(epoch_data, uuid, trigger):
         right_coord = (int(width * 0.62), int(height * 0.25))  # Fp2~F4 근처
 
         # 컬러 매핑 설정
-        cmap = plt.get_cmap('bwr')
+        cmap = get_cmap('bwr')
         norm = plt.Normalize(-0.5, 0.5)
 
         left_color = cmap(norm(-faa_value))  # FAA < 0: 좌측 우세

@@ -2,6 +2,7 @@ import mne
 import mne_connectivity
 import matplotlib
 import matplotlib.pyplot as plt
+from utils.eeg.eeg_analysis.mpl_compat import get_cmap
 from collections import defaultdict
 import numpy as np
 import pandas as pd
@@ -264,7 +265,7 @@ def get_brain_delta_connectivity(epoch_data, uuid, trigger, sleep_labels_int):
 
                     vlim     = global_fc_vlim[method]
                     norm     = mcolors.Normalize(vmin=-vlim, vmax=vlim)
-                    colormap = plt.cm.get_cmap('RdBu_r')
+                    colormap = get_cmap('RdBu_r')
 
                     # colorbar (항상 표시 — 범위 통일)
                     sm = plt.cm.ScalarMappable(cmap=colormap, norm=norm)

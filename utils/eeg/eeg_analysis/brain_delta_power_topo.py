@@ -2,6 +2,7 @@ import copy
 import mne
 import numpy as np
 import matplotlib.pyplot as plt
+from utils.eeg.eeg_analysis.mpl_compat import get_cmap
 from scipy.signal import hilbert
 import os
 import networkx as nx
@@ -183,7 +184,7 @@ def get_brain_delta_power_topo(epochs, uuid, trigger, sleep_labels_int):
                 all_deltas.extend(diff[~np.isnan(diff)].tolist())
     global_vlim = float(np.percentile(np.abs(all_deltas), 97)) if all_deltas else 0.01
     norm     = mcolors.Normalize(vmin=-global_vlim, vmax=global_vlim)
-    colormap = plt.cm.get_cmap('RdBu_r')
+    colormap = get_cmap('RdBu_r')
     print(f'    Power global vlim: ±{global_vlim:.4f}')
 
     for targ, ref in pairs:

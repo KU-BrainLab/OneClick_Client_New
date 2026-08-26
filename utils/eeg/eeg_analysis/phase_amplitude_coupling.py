@@ -5,6 +5,7 @@ import base64
 
 import numpy as np
 import matplotlib.pyplot as plt
+from utils.eeg.eeg_analysis.mpl_compat import get_cmap
 from scipy.signal import butter, filtfilt, hilbert
 from joblib import Parallel, delayed
 
@@ -159,7 +160,7 @@ def _add_roi_boxes(ax):
 
 def _plot_comodulogram(mi_matrix, title, save_path, cmap_name='jet', vmin=0, vmax=None):
     """단일 comodulogram 저장."""
-    cmap = plt.cm.get_cmap(cmap_name).copy()
+    cmap = get_cmap(cmap_name).copy()
     cmap.set_bad(color='#1a1a1a')   # NaN(phase>=amp) 구간 — 어두운 회색
     if vmax is None:
         vmax = float(np.nanmax(mi_matrix))
