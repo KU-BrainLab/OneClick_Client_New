@@ -9,6 +9,12 @@
   python remote_submit.py --FILE data/2026-08-21-1706.csv \
       --NAME 홍길동 --AGE 30 --BIRTH 1996-01-01 --SEX male \
       --MEASUREMENT_DATE "2026-08-21 17:06" --ISI 11 --PSQI 10
+
+--SERVER 는 두 형태를 받는다:
+  내부망에서 직접        --SERVER <연구실서버IP>:8500
+  외부에서 Django 중계   --SERVER <웹서버주소>:8000/api/v1/exp/analysis
+외부망은 연구실 서버에 직접 닿지 못하므로 웹서버의 중계 경로를 쓴다.
+어느 쪽이든 이 스크립트 입장에선 '<SERVER>/jobs' 로 붙는 것이라 동작은 같다.
 """
 import argparse
 import os
@@ -30,7 +36,9 @@ def get_args():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--SERVER', default=DEFAULT_SERVER,
-                    help='분석 서버 주소 (기본: %s 또는 ONECLICK_ANALYSIS_SERVER)'
+                    help='분석 서버 주소. 내부망 직접이면 <IP>:8500, 외부에서는 '
+                         'Django 중계 <웹서버>:8000/api/v1/exp/analysis '
+                         '(기본: %s 또는 ONECLICK_ANALYSIS_SERVER)'
                          % DEFAULT_SERVER)
     ap.add_argument('--FILE', required=True, help='측정 원본 CSV 경로')
     ap.add_argument('--NAME', required=True)
