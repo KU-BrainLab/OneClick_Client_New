@@ -2,6 +2,9 @@
 neuronet/ckpt/
 synthsleepnet/ckpt/
 
+# 원격 분석 작업(업로드 CSV·로그) — 피험자 데이터가 들어간다
+jobs/
+
 # image, analysis data
 # 측정 원본이 실수로 커밋되지 않게 한다. 피험자 이름이 파일명에 들어간다.
 *.jpg

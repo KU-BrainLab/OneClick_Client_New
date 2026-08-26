@@ -15,7 +15,8 @@ from utils.ecg.feature_extraction import ECGFeatureExtractor
 import torch
 import pickle
 
-from utils.ai_report import (request_ai_report, build_questionnaire, QUESTIONNAIRE_SCALES)
+from utils.ai_report import (request_ai_report, build_questionnaire, QUESTIONNAIRE_SCALES,
+                             extract_pk)
 from utils.phase_defs import DIFF_KEYS
 
 def get_args():
@@ -317,6 +318,8 @@ if __name__ == '__main__':
                                             'stimulus_info': args.STIMULUS}),
                         headers=headers)
         print(oo)
+        # 원격 분석 러너(analysis_server.py)가 이 줄로 작업과 실험을 연결한다.
+        print('[RESULT] exp_pk={}'.format(extract_pk(oo)))
 
         # 업로드가 끝난 김에 AI 리포트도 미리 만들어 둔다. 웹에서 열 때
         # 3~4분을 기다리지 않아도 되고, 여기선 아무도 기다리지 않는다.
