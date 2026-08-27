@@ -157,6 +157,11 @@ class RemoteGui:
         self.root = root
         root.title('OneClick 원격 제출')
         root.minsize(640, 640)
+        try:                    # 창·작업표시줄 아이콘 (없어도 동작엔 지장 없음)
+            root.iconbitmap(os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), 'remote_gui.ico'))
+        except tk.TclError:
+            pass
         self.q = queue.Queue()
         self._build()
         self._drain()
