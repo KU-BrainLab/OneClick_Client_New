@@ -15,6 +15,7 @@ import json
 import os
 import queue
 import re
+import sys
 import threading
 import time
 import tkinter as tk
@@ -22,13 +23,26 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 import requests
 
-from utils.ai_report import QUESTIONNAIRE_SCALES
+# 설문 척도 (키, 화면 표기). 설명 문구는 아래 STRINGS 의 'scale_<키>' 에 있다.
+#
+# 이 파일은 측정 PC 에 단독으로 배포된다 — 분석 코드는 넘기지 않는다. 그래서
+# utils.ai_report 를 import 하지 않고 여기에 둔다. 두 정의가 어긋나면 저장소
+# 테스트가 잡는다.
+QUESTIONNAIRE_SCALES = (
+    ('IRLS', 'IRLS'),
+    ('PSQI', 'PSQI'),
+    ('ISI', 'ISI'),
+    ('ESS', 'ESS'),
+    ('COMPASS31', 'COMPASS31'),
+    ('BAI', 'BAI'),
+    ('BDI2', 'BDI-II'),
+)
 
 # ── 설정 (코드에서 수정) ─────────────────────────────────────────────
 # 외부망(웹서버 중계): '180.83.245.145:8000/api/v1/exp/analysis'
 # 연구실 내부망(직접) : '<연구실서버IP>:8500'
-SERVER = os.environ.get('ONECLICK_ANALYSIS_SERVER',
-                        '180.83.245.145:8000/api/v1/exp/analysis')
+# 환경변수 ONECLICK_ANALYSIS_SERVER 와 설정 파일의 server 키가 이 값을 덮는다.
+SERVER = '180.83.245.145:8000/api/v1/exp/analysis'
 DEFAULT_SLEEP_MODEL = 'neuronet'
 DEFAULT_CROP = True
 
@@ -290,6 +304,24 @@ def t(_key, **fmt):
     return text.format(**fmt) if fmt else text
 
 
+def resolve_server():
+    """분석 서버 주소 — 환경변수 > 설정 파일 > 코드 기본값 순.
+
+    exe 로 묶어 배포하면 주소가 실행 파일 안에 박힌다. 서버가 바뀌었을 때
+    다시 빌드하지 않아도 되도록 설정 파일(server 키)로도 덮을 수 있게 한다.
+    """
+    raw = (os.environ.get('ONECLICK_ANALYSIS_SERVER')
+           or load_config().get('server') or SERVER or '')
+    return re.sub(r'^https?://', '', raw.strip()).rstrip('/')
+
+
+def _resource(name):
+    """곁들여 배포되는 파일의 경로. exe 로 묶였을 때는 임시 해제 폴더에 있다."""
+    base = getattr(sys, '_MEIPASS',
+                   os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, name)
+
+
 def load_config():
     try:
         with open(CONFIG_PATH, encoding='utf-8') as f:
@@ -427,9 +459,8 @@ class RemoteGui:
         set_language(load_config().get('language', 'ko'))
         root.minsize(660, 660)
         try:                    # 창·작업표시줄 아이콘 (없어도 동작엔 지장 없음)
-            root.iconbitmap(os.path.join(
-                os.path.dirname(os.path.abspath(__file__)), 'remote_gui.ico'))
-        except tk.TclError:
+            root.iconbitmap(_resource('remote_gui.ico'))
+        except (tk.TclError, OSError):
             pass
         self.q = queue.Queue()
         self._tx = []           # 언어를 바꿀 때 다시 쓸 (위젯, 문구키) 목록
@@ -538,7 +569,7 @@ class RemoteGui:
         qf = self._tr(ttk.LabelFrame(frm, text='', padding=6), 'survey')
         qf.grid(row=row, column=0, columnspan=4, sticky='ew', **pad)
         self.var_scales = {}
-        for i, (key, label, _desc) in enumerate(QUESTIONNAIRE_SCALES):
+        for i, (key, label) in enumerate(QUESTIONNAIRE_SCALES):
             r, c = divmod(i, 2)
             holder = ttk.Frame(qf)
             holder.grid(row=r, column=c * 2, sticky='w', **pad)
@@ -656,7 +687,7 @@ class RemoteGui:
         return path, params
 
     def _submit(self):
-        server = re.sub(r'^https?://', '', (SERVER or '').strip()).rstrip('/')
+        server = resolve_server()
         if not server:
             messagebox.showerror(t('err_title'), t('err_server'))
             return
@@ -695,7 +726,47 @@ class RemoteGui:
         self.root.after(200, self._drain)
 
 
+def run_check(out_path):
+    """배포 점검 — 창을 띄우지 않고 서버까지 닿는지 확인해 파일로 남긴다.
+
+        OneClickRemote.exe --check 결과.txt
+
+    측정 PC 에 실행 파일을 두고 나서 '이 PC 에서 서버가 보이는지'를 확인할
+    때 쓴다. 실행 파일이 제대로 묶였는지도 이걸로 드러난다.
+    """
+    lines = ['OneClick 원격 제출 — 배포 점검',
+             'python %s' % sys.version.split()[0],
+             'requests %s' % requests.__version__,
+             '실행 형태: %s' % ('실행 파일' if getattr(sys, 'frozen', False)
+                                else '스크립트')]
+    server = resolve_server()
+    lines.append('서버: %s' % (server or '(설정 없음)'))
+    ok = False
+    if server:
+        try:
+            r = requests.get('http://%s/jobs/1' % server, timeout=10)
+            # 없는 작업이라 404 가 정상이다 — 응답이 왔다는 게 핵심
+            ok = r.status_code in (200, 404)
+            lines.append('연결: HTTP %d — %s' % (r.status_code,
+                                                 '정상' if ok else '확인 필요'))
+            lines.append('응답: %s' % r.text[:200])
+        except requests.RequestException as e:
+            lines.append('연결 실패: %s' % type(e).__name__)
+    lines.append('결과: %s' % ('OK' if ok else 'FAIL'))
+    text = '\n'.join(lines) + '\n'
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    return ok
+
+
 if __name__ == '__main__':
+    if '--check' in sys.argv:
+        i = sys.argv.index('--check')
+        target = (sys.argv[i + 1] if len(sys.argv) > i + 1
+                  else os.path.join(os.path.dirname(os.path.abspath(
+                      sys.executable if getattr(sys, 'frozen', False)
+                      else __file__)), 'oneclick_check.txt'))
+        sys.exit(0 if run_check(target) else 1)
     root = tk.Tk()
     RemoteGui(root)
     root.mainloop()
