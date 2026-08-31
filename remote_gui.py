@@ -648,10 +648,14 @@ class RemoteGui:
         row += 1
 
         # 기관 로고 (연구실·학교·회사) — 파일이 없으면 그 자리만 생략된다.
+        # 로고 원본들이 흰 바탕이라 줄 전체를 흰 띠로 칠해 이질감을 없앤다.
         # PhotoImage 는 참조를 붙들어 두지 않으면 GC 로 사라져 빈 칸이 된다.
         self._logo_imgs = []
-        logos = ttk.Frame(frm)
-        logos.grid(row=row, column=0, columnspan=4, pady=(6, 0))
+        strip = tk.Frame(frm, bg='#ffffff')
+        strip.grid(row=row, column=0, columnspan=4, sticky='ew',
+                   padx=6, pady=(6, 0))
+        inner = tk.Frame(strip, bg='#ffffff')
+        inner.pack(anchor='center', pady=6)
         for name in ('logo_lab.png', 'logo_univ.png', 'logo_company.png'):
             path = _resource(name)
             if not os.path.exists(path):
@@ -661,7 +665,10 @@ class RemoteGui:
             except tk.TclError:
                 continue
             self._logo_imgs.append(img)
-            ttk.Label(logos, image=img).pack(side='left', padx=16)
+            tk.Label(inner, image=img, bg='#ffffff', bd=0).pack(
+                side='left', padx=18)
+        if not self._logo_imgs:
+            strip.grid_remove()
 
     # 동작 --------------------------------------------------------------
     def _change_language(self, _event=None):
