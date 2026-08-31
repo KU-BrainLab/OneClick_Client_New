@@ -101,10 +101,10 @@ STRINGS = {
         'err_server': '서버 주소가 설정돼 있지 않습니다. 관리자에게 문의하세요.',
         'result_title': '원격 제출',
         'log_submit': '제출: {file} ({size:.1f}MB)\n',
-        'log_accepted': '접수됨 — 작업 {job}. 분석을 기다립니다.\n',
+        'log_accepted': '접수됐습니다. 분석을 기다립니다.\n',
         'st_upload': '업로드 중... {sent:.1f} / {total:.1f}MB',
-        'st_job': '작업 {job} — {state}',
-        'st_retry': '작업 {job} — 연결 재시도 중',
+        'st_job': '{state}',
+        'st_retry': '연결 재시도 중',
         'state_queued': '대기열',
         'state_running': '분석 중',
         'state_done': '완료',
@@ -114,8 +114,8 @@ STRINGS = {
         'fin_rejected': '제출 거부: {error}',
         'fin_badresp': '서버 응답을 해석할 수 없습니다 (HTTP {code}).',
         'fin_noconn': '서버에 연결할 수 없습니다 ({error}).',
-        'fin_timeout': '제한 시간({min}분)을 넘겼습니다. 작업 {job} 은 서버에서 '
-                       '계속될 수 있습니다.',
+        'fin_timeout': '제한 시간({min}분)을 넘겼습니다. 분석은 서버에서 계속될 수 '
+                       '있습니다.',
         'fin_error': '오류: {error}',
         'fin_ssl': '서버 인증서를 확인하지 못했습니다. 프로그램과 함께 배포된 '
                    '인증서 파일이 빠졌거나 서버 설정이 바뀌었습니다 — 관리자에게 '
@@ -169,10 +169,10 @@ STRINGS = {
         'err_server': 'No server address is configured. Contact your administrator.',
         'result_title': 'Remote upload',
         'log_submit': 'Sending: {file} ({size:.1f}MB)\n',
-        'log_accepted': 'Accepted - job {job}. Waiting for the analysis.\n',
+        'log_accepted': 'Accepted. Waiting for the analysis.\n',
         'st_upload': 'Uploading... {sent:.1f} / {total:.1f}MB',
-        'st_job': 'Job {job} - {state}',
-        'st_retry': 'Job {job} - reconnecting',
+        'st_job': '{state}',
+        'st_retry': 'Reconnecting',
         'state_queued': 'queued',
         'state_running': 'analyzing',
         'state_done': 'done',
@@ -182,7 +182,7 @@ STRINGS = {
         'fin_rejected': 'Upload rejected: {error}',
         'fin_badresp': 'Could not read the server response (HTTP {code}).',
         'fin_noconn': 'Could not reach the server ({error}).',
-        'fin_timeout': 'Timed out after {min} minutes. Job {job} may still be '
+        'fin_timeout': 'Timed out after {min} minutes. The analysis may still be '
                        'running on the server.',
         'fin_error': 'Error: {error}',
         'fin_ssl': 'Could not verify the server certificate. The certificate '
@@ -241,10 +241,10 @@ STRINGS = {
         'err_server': 'サーバーアドレスが設定されていません。管理者にご連絡ください。',
         'result_title': 'リモート送信',
         'log_submit': '送信: {file} ({size:.1f}MB)\n',
-        'log_accepted': '受付完了 — ジョブ {job}。解析をお待ちください。\n',
+        'log_accepted': '受付が完了しました。解析をお待ちください。\n',
         'st_upload': 'アップロード中... {sent:.1f} / {total:.1f}MB',
-        'st_job': 'ジョブ {job} — {state}',
-        'st_retry': 'ジョブ {job} — 再接続中',
+        'st_job': '{state}',
+        'st_retry': '再接続中',
         'state_queued': '待機列',
         'state_running': '解析中',
         'state_done': '完了',
@@ -254,8 +254,8 @@ STRINGS = {
         'fin_rejected': '送信が拒否されました: {error}',
         'fin_badresp': 'サーバーの応答を解釈できません (HTTP {code})。',
         'fin_noconn': 'サーバーに接続できません ({error})。',
-        'fin_timeout': '制限時間({min}分)を超えました。ジョブ {job} はサーバー側で'
-                       '続いている可能性があります。',
+        'fin_timeout': '制限時間({min}分)を超えました。解析はサーバー側で続いている'
+                       '可能性があります。',
         'fin_error': 'エラー: {error}',
         'fin_ssl': 'サーバー証明書を確認できませんでした。プログラムに同梱の証明書'
                    'ファイルが見つからないか、サーバー設定が変わっています — 管理者に'
@@ -645,6 +645,23 @@ class RemoteGui:
                                              font=('Consolas', 9))
         self.log.grid(row=row, column=0, columnspan=4, sticky='nsew', **pad)
         frm.rowconfigure(row, weight=1)
+        row += 1
+
+        # 기관 로고 (연구실·학교·회사) — 파일이 없으면 그 자리만 생략된다.
+        # PhotoImage 는 참조를 붙들어 두지 않으면 GC 로 사라져 빈 칸이 된다.
+        self._logo_imgs = []
+        logos = ttk.Frame(frm)
+        logos.grid(row=row, column=0, columnspan=4, pady=(6, 0))
+        for name in ('logo_lab.png', 'logo_univ.png', 'logo_company.png'):
+            path = _resource(name)
+            if not os.path.exists(path):
+                continue
+            try:
+                img = tk.PhotoImage(file=path)
+            except tk.TclError:
+                continue
+            self._logo_imgs.append(img)
+            ttk.Label(logos, image=img).pack(side='left', padx=16)
 
     # 동작 --------------------------------------------------------------
     def _change_language(self, _event=None):

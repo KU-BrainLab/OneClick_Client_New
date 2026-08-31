@@ -10,6 +10,9 @@ jobs/
 *.jpg
 *.png
 !brain.png
+!logo_lab.png
+!logo_univ.png
+!logo_company.png
 *.csv
 *.zip
 *.edf

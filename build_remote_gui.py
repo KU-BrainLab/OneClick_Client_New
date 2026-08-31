@@ -42,6 +42,10 @@ def main():
     if os.path.exists(icon):
         # --icon 은 실행 파일 아이콘, --add-data 는 창 아이콘용 사본
         argv += ['--icon', icon, '--add-data', icon + os.pathsep + '.']
+    for logo in ('logo_lab.png', 'logo_univ.png', 'logo_company.png'):
+        lp = os.path.join(HERE, logo)
+        if os.path.exists(lp):
+            argv += ['--add-data', lp + os.pathsep + '.']
     ca = os.path.join(HERE, 'oneclick-ca.pem')
     if os.path.exists(ca):
         # 서버(자체 서명) 검증용 연구실 CA 공개 인증서 — https 필수 동반물
