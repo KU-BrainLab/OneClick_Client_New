@@ -39,10 +39,11 @@ QUESTIONNAIRE_SCALES = (
 )
 
 # ── 설정 (코드에서 수정) ─────────────────────────────────────────────
-# 외부망(웹서버 중계): '180.83.245.145:8000/api/v1/exp/analysis'
-# 연구실 내부망(직접) : '<연구실서버IP>:8500'
+# 외부망(웹서버 중계): 'https://180.83.245.145:8443/api/v1/exp/analysis'
+# 연구실 내부망(직접) : '<연구실서버IP>:8500' (스킴 없으면 http 로 해석)
 # 환경변수 ONECLICK_ANALYSIS_SERVER 와 설정 파일의 server 키가 이 값을 덮는다.
-SERVER = '180.83.245.145:8000/api/v1/exp/analysis'
+# 개인정보가 인터넷 구간을 지나므로 외부 경로는 https 가 의무다.
+SERVER = 'https://180.83.245.145:8443/api/v1/exp/analysis'
 DEFAULT_SLEEP_MODEL = 'neuronet'
 DEFAULT_CROP = True
 
@@ -116,6 +117,9 @@ STRINGS = {
         'fin_timeout': '제한 시간({min}분)을 넘겼습니다. 작업 {job} 은 서버에서 '
                        '계속될 수 있습니다.',
         'fin_error': '오류: {error}',
+        'fin_ssl': '서버 인증서를 확인하지 못했습니다. 프로그램과 함께 배포된 '
+                   '인증서 파일이 빠졌거나 서버 설정이 바뀌었습니다 — 관리자에게 '
+                   '문의하세요.',
         'srv_exit': '분석이 중단됐습니다 (종료 코드 {code}). 관리자에게 문의하세요.',
         'srv_restart': '서버가 다시 시작돼 중단됐습니다. 다시 전송해 주세요.',
         'srv_toobig': '파일이 너무 큽니다 ({mb}MB).',
@@ -181,6 +185,9 @@ STRINGS = {
         'fin_timeout': 'Timed out after {min} minutes. Job {job} may still be '
                        'running on the server.',
         'fin_error': 'Error: {error}',
+        'fin_ssl': 'Could not verify the server certificate. The certificate '
+                   'file shipped with this program is missing, or the server '
+                   'changed - contact your administrator.',
         'srv_exit': 'The analysis stopped (exit code {code}). Contact your '
                     'administrator.',
         'srv_restart': 'The server restarted and interrupted the job. Please '
@@ -250,6 +257,9 @@ STRINGS = {
         'fin_timeout': '制限時間({min}分)を超えました。ジョブ {job} はサーバー側で'
                        '続いている可能性があります。',
         'fin_error': 'エラー: {error}',
+        'fin_ssl': 'サーバー証明書を確認できませんでした。プログラムに同梱の証明書'
+                   'ファイルが見つからないか、サーバー設定が変わっています — 管理者に'
+                   'ご連絡ください。',
         'srv_exit': '解析が中断されました（終了コード {code}）。管理者にご連絡ください。',
         'srv_restart': 'サーバーの再起動により中断されました。もう一度送信してください。',
         'srv_toobig': 'ファイルが大きすぎます（{mb}MB）。',
@@ -312,7 +322,7 @@ def resolve_server():
     """
     raw = (os.environ.get('ONECLICK_ANALYSIS_SERVER')
            or load_config().get('server') or SERVER or '')
-    return re.sub(r'^https?://', '', raw.strip()).rstrip('/')
+    return raw.strip().rstrip('/')
 
 
 def _resource(name):
@@ -320,6 +330,25 @@ def _resource(name):
     base = getattr(sys, '_MEIPASS',
                    os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, name)
+
+
+def _api_base(server):
+    """'host:port' 나 'https://…' 를 스킴 있는 베이스 URL 로."""
+    server = server.strip().rstrip('/')
+    return server if '://' in server else 'http://' + server
+
+
+def _tls_verify(base):
+    """requests 의 verify 인자.
+
+    서버가 자체 서명 인증서를 쓰므로, 함께 배포되는 연구실 CA 공개
+    인증서(oneclick-ca.pem)가 있으면 그걸로 서버를 검증한다.
+    """
+    if base.startswith('https://'):
+        ca = _resource('oneclick-ca.pem')
+        if os.path.exists(ca):
+            return ca
+    return True
 
 
 def load_config():
@@ -382,10 +411,12 @@ def run_submission(server, file_path, params, q):
 
         q.put(('log', t('log_submit', file=os.path.basename(file_path),
                         size=size_mb)))
+        base = _api_base(server)
+        verify = _tls_verify(base)
         body = _ProgressFile(file_path, notify)
         try:
-            r = requests.post('http://%s/jobs' % server, params=params,
-                              data=body, timeout=600)
+            r = requests.post('%s/jobs' % base, params=params,
+                              data=body, timeout=600, verify=verify)
         finally:
             body.close()
         try:
@@ -407,8 +438,8 @@ def run_submission(server, file_path, params, q):
         last_status = None
         while time.time() < deadline:
             try:
-                st = requests.get('http://%s/jobs/%s' % (server, job_id),
-                                  timeout=30).json()
+                st = requests.get('%s/jobs/%s' % (base, job_id),
+                                  timeout=30, verify=verify).json()
             except (requests.RequestException, ValueError):
                 q.put(('status', t('st_retry', job=job_id)))
                 time.sleep(POLL_INTERVAL_SEC)
@@ -445,6 +476,8 @@ def run_submission(server, file_path, params, q):
 
         q.put(('finish', False, t('fin_timeout', min=POLL_LIMIT_SEC // 60,
                                   job=job_id)))
+    except requests.exceptions.SSLError:
+        q.put(('finish', False, t('fin_ssl')))
     except requests.RequestException as e:
         # 예외 문자열에는 서버 주소가 들어 있다. 종류만 보여준다.
         q.put(('finish', False, t('fin_noconn', error=type(e).__name__)))
@@ -743,8 +776,14 @@ def run_check(out_path):
     lines.append('서버: %s' % (server or '(설정 없음)'))
     ok = False
     if server:
+        base = _api_base(server)
+        verify = _tls_verify(base)
+        lines.append('암호화: %s' % (
+            'TLS + 연구실 CA 검증' if isinstance(verify, str)
+            else ('TLS (시스템 신뢰 저장소)' if base.startswith('https://')
+                  else '없음 — 내부망 직결용')))
         try:
-            r = requests.get('http://%s/jobs/1' % server, timeout=10)
+            r = requests.get('%s/jobs/1' % base, timeout=10, verify=verify)
             # 없는 작업이라 404 가 정상이다 — 응답이 왔다는 게 핵심
             ok = r.status_code in (200, 404)
             lines.append('연결: HTTP %d — %s' % (r.status_code,

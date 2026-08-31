@@ -13,6 +13,7 @@
 않고 경고만 남긴다 — 리포트는 웹에서 다시 만들 수 있다.
 """
 import json
+import os
 import time
 
 import requests
@@ -58,13 +59,38 @@ def build_questionnaire(values):
     return out or None
 
 
+# 함께 배포되는 연구실 CA 공개 인증서 (저장소 루트). 서버가 자체 서명
+# 인증서를 쓰므로, https 일 때는 이 파일로 서버를 검증한다.
+CA_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'oneclick-ca.pem')
+
+
+def api_base(server):
+    """'host:port' 나 'https://host:port' 를 스킴 있는 베이스 URL 로.
+
+    개인정보를 인터넷 구간으로 보낼 때는 암호화가 법적 의무다(안전성
+    확보조치 기준 제7조④). 외부를 지나는 주소는 https 로 쓰고, 스킴 없는
+    값은 내부망 직결(분석 서버 등)용 http 로 해석한다.
+    """
+    server = server.strip().rstrip('/')
+    return server if '://' in server else 'http://' + server
+
+
+def tls_verify(base):
+    """requests 의 verify 인자 — 연구실 CA 가 있으면 그걸로 검증한다."""
+    if base.startswith('https://') and os.path.exists(CA_FILE):
+        return CA_FILE
+    return True
+
+
 def _report_url(server, pk):
     """생성 전용 창구.
 
     /ai-report/ 는 로그인을 요구한다(리포트 본문에 환자 정보가 들어가므로).
     측정 장비는 토큰이 없으므로, 본문 없이 생성만 맡기는 이 경로를 쓴다.
     """
-    return 'http://{}/api/v1/exp/{}/ai-report/generate/'.format(server, pk)
+    return '{}/api/v1/exp/{}/ai-report/generate/'.format(api_base(server), pk)
 
 
 def extract_pk(create_response):
@@ -83,7 +109,8 @@ def _poll(server, pk, log):
     while time.time() < deadline:
         time.sleep(POLL_INTERVAL_SEC)
         try:
-            r = requests.get(_report_url(server, pk), timeout=30)
+            r = requests.get(_report_url(server, pk), timeout=30,
+                             verify=tls_verify(api_base(server)))
         except requests.RequestException:
             continue                      # 일시적 네트워크 오류는 넘기고 계속 기다린다
         if r.status_code == 200:
@@ -116,7 +143,8 @@ def request_ai_report(server, create_response, log=print):
     log('[AI report] Experiment {} Report Generating... — It takes 3~4 minutes'.format(pk))
     started = time.time()
     try:
-        r = requests.post(_report_url(server, pk), timeout=POST_TIMEOUT_SEC)
+        r = requests.post(_report_url(server, pk), timeout=POST_TIMEOUT_SEC,
+                          verify=tls_verify(api_base(server)))
         if r.status_code == 200:
             log('[AI report] Complete! ({:.0f}s)'.format(time.time() - started))
             return True

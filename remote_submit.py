@@ -12,8 +12,10 @@
 
 --SERVER 는 두 형태를 받는다:
   내부망에서 직접        --SERVER <연구실서버IP>:8500
-  외부에서 Django 중계   --SERVER <웹서버주소>:8000/api/v1/exp/analysis
+  외부에서 Django 중계   --SERVER https://<웹서버주소>:8443/api/v1/exp/analysis
 외부망은 연구실 서버에 직접 닿지 못하므로 웹서버의 중계 경로를 쓴다.
+개인정보가 인터넷 구간을 지나므로 외부 경로는 https 가 의무다. 서버 인증서는
+함께 배포되는 oneclick-ca.pem(저장소 루트)으로 검증한다.
 어느 쪽이든 이 스크립트 입장에선 '<SERVER>/jobs' 로 붙는 것이라 동작은 같다.
 """
 import argparse
@@ -23,7 +25,7 @@ import time
 
 import requests
 
-from utils.ai_report import QUESTIONNAIRE_SCALES
+from utils.ai_report import QUESTIONNAIRE_SCALES, api_base, tls_verify
 
 DEFAULT_SERVER = os.environ.get('ONECLICK_ANALYSIS_SERVER', '127.0.0.1:8500')
 
@@ -37,7 +39,7 @@ def get_args():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--SERVER', default=DEFAULT_SERVER,
                     help='분석 서버 주소. 내부망 직접이면 <IP>:8500, 외부에서는 '
-                         'Django 중계 <웹서버>:8000/api/v1/exp/analysis '
+                         'Django 중계 https://<웹서버>:8443/api/v1/exp/analysis '
                          '(기본: %s 또는 ONECLICK_ANALYSIS_SERVER)'
                          % DEFAULT_SERVER)
     ap.add_argument('--FILE', required=True, help='측정 원본 CSV 경로')
@@ -79,12 +81,13 @@ def build_params(args):
 
 
 def submit(server, csv_path, params):
+    base = api_base(server)
     size_mb = os.path.getsize(csv_path) / 1e6
     print('제출: %s (%.1fMB) -> %s' % (os.path.basename(csv_path), size_mb, server))
     with open(csv_path, 'rb') as f:
         # 파일을 본문으로 스트리밍한다 — 서버가 표준 라이브러리만으로 받는다.
-        r = requests.post('http://%s/jobs' % server, params=params, data=f,
-                          timeout=600)
+        r = requests.post('%s/jobs' % base, params=params, data=f,
+                          timeout=600, verify=tls_verify(base))
     r.raise_for_status()
     body = r.json()
     if 'job' not in body:
@@ -94,12 +97,14 @@ def submit(server, csv_path, params):
 
 
 def poll(server, job_id):
+    base = api_base(server)
     deadline = time.time() + POLL_LIMIT_SEC
     seen = 0                      # 이미 출력한 로그 길이
     last_status = None
     while time.time() < deadline:
         try:
-            r = requests.get('http://%s/jobs/%s' % (server, job_id), timeout=30)
+            r = requests.get('%s/jobs/%s' % (base, job_id), timeout=30,
+                             verify=tls_verify(base))
             st = r.json()
         except (requests.RequestException, ValueError) as e:
             print('[폴링] 연결 오류(%s) — 계속 시도합니다' % type(e).__name__)

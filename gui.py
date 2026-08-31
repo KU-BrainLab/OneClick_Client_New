@@ -23,7 +23,8 @@ class QueueStream:
 def run_analysis(args_dict, log_queue):
     import numpy as np
     import requests
-    from utils.ai_report import request_ai_report, build_questionnaire
+    from utils.ai_report import (request_ai_report, build_questionnaire,
+                                 api_base, tls_verify)
     from utils.phase_defs import DIFF_KEYS
     from utils.ecg.clean_up import CleanUpECG
     from utils.ecg.feature_extraction import ECGFeatureExtractor
@@ -126,11 +127,12 @@ def run_analysis(args_dict, log_queue):
     }, cls=NpEncoder)
 
     if not debug:
-        ip = '180.83.245.145:8000'
+        # 인터넷 구간이므로 https 가 의무다 (안전성 확보조치 기준 제7조④).
+        ip = 'https://180.83.245.145:8443'
         s_index = ['male', 'female']
         try:
             resp = requests.post(
-                f'http://{ip}/api/v1/exp/',
+                f'{api_base(ip)}/api/v1/exp/',
                 data=json.dumps({
                     'name': name, 'measurement_date': mdate,
                     'age': age,   'birth': birth,
@@ -142,6 +144,7 @@ def run_analysis(args_dict, log_queue):
                     'questionnaire': args_dict.get('QUESTIONNAIRE'),
                 }),
                 headers={'Content-type': 'application/json', 'Accept': '*/*'},
+                verify=tls_verify(api_base(ip)),
             )
             log_queue.put(f'[Server Response] {resp.status_code} {resp.text[:200]}\n')
             # 업로드가 끝난 김에 AI 리포트도 미리 만들어 둔다. main.py 와 같은

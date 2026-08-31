@@ -42,6 +42,14 @@ def main():
     if os.path.exists(icon):
         # --icon 은 실행 파일 아이콘, --add-data 는 창 아이콘용 사본
         argv += ['--icon', icon, '--add-data', icon + os.pathsep + '.']
+    ca = os.path.join(HERE, 'oneclick-ca.pem')
+    if os.path.exists(ca):
+        # 서버(자체 서명) 검증용 연구실 CA 공개 인증서 — https 필수 동반물
+        argv += ['--add-data', ca + os.pathsep + '.']
+    else:
+        print('경고: oneclick-ca.pem 이 없습니다. 웹서버에서 인증서를 만들고 '
+              'CA 공개 파일을 저장소 루트에 복사한 뒤 다시 빌드하세요 — '
+              '없으면 https 접속이 인증서 오류로 실패합니다.')
     # 분석 파이프라인이 딸려 들어가지 않게 저장소를 탐색 경로에서 뺀다.
     # remote_gui.py 는 저장소 모듈을 import 하지 않으므로 이걸로 충분하다.
     argv += ['--paths', os.path.join(HERE, '_nothing')]

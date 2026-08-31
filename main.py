@@ -16,7 +16,7 @@ import torch
 import pickle
 
 from utils.ai_report import (request_ai_report, build_questionnaire, QUESTIONNAIRE_SCALES,
-                             extract_pk)
+                             extract_pk, api_base, tls_verify)
 from utils.phase_defs import DIFF_KEYS
 
 def get_args():
@@ -293,7 +293,8 @@ if __name__ == '__main__':
 
 
     headers = {'Content-type': 'application/json', 'Accept': '*/*'}
-    ip = '180.83.245.145:8000'
+    # 인터넷 구간이므로 https 가 의무다 (안전성 확보조치 기준 제7조④).
+    ip = 'https://180.83.245.145:8443'
     s_index = ['male', 'female']
 
 
@@ -302,7 +303,8 @@ if __name__ == '__main__':
 
     #if you want send data without specific datas: use "\"\"",
     if not args.DEBUG_MODE:
-        oo = requests.post('http://{}/api/v1/exp/'.format(ip),
+        oo = requests.post('{}/api/v1/exp/'.format(api_base(ip)),
+                        verify=tls_verify(api_base(ip)),
                         data=json.dumps({'name': args.NAME,
                                             'measurement_date': args.MEASUREMENT_DATE,
                                             'age': args.AGE,
