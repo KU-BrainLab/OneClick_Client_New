@@ -669,6 +669,12 @@ class RemoteGui:
                 side='left', padx=18)
         if not self._logo_imgs:
             strip.grid_remove()
+        row += 1
+
+        # 제작자 크레딧 — 고유명사라 언어 전환과 무관하게 고정
+        ttk.Label(frm, text='Made by Youngseok Kim',
+                  foreground='#8a8f98', font=('Segoe UI', 8)).grid(
+            row=row, column=0, columnspan=4, sticky='e', padx=8)
 
     # 동작 --------------------------------------------------------------
     def _change_language(self, _event=None):
