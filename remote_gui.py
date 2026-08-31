@@ -641,7 +641,10 @@ class RemoteGui:
         row += 1
 
         # 로그
-        self.log = scrolledtext.ScrolledText(frm, height=18, state='disabled',
+        # 기본 높이를 낮게 잡는다 — 18줄이면 배율 150% 화면에서 창 자연
+        # 높이가 화면을 넘어 하단 로고 줄이 잘린 채 열린다. 로그 행이
+        # weight=1 이라 창을 키우면 그만큼 늘어난다.
+        self.log = scrolledtext.ScrolledText(frm, height=10, state='disabled',
                                              font=('Consolas', 9))
         self.log.grid(row=row, column=0, columnspan=4, sticky='nsew', **pad)
         frm.rowconfigure(row, weight=1)
