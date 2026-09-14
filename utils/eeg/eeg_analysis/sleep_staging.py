@@ -30,7 +30,9 @@ _NEURONET_N_FOLDS   = 5
 MODEL_SYNTHSLEEPNET = 'synthsleepnet'
 MODEL_NEURONET      = 'neuronet'
 AVAILABLE_MODELS    = (MODEL_SYNTHSLEEPNET, MODEL_NEURONET)
-DEFAULT_MODEL       = MODEL_NEURONET
+# SHHS C3/C4 로 학습돼 원클릭 채널과 유도가 맞는 모델을 기본으로 한다.
+# NeuroNet 은 Sleep-EDFX(Fpz-Cz) 학습이라 유도가 다르다 — 예비용으로 남긴다.
+DEFAULT_MODEL       = MODEL_SYNTHSLEEPNET
 
 # 두 모델 모두 C4, C3 두 채널만 쓴다.
 # ch_names 매핑: 서버 학습 채널명 → 원클릭 채널 인덱스용 이름

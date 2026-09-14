@@ -44,7 +44,7 @@ QUESTIONNAIRE_SCALES = (
 # 환경변수 ONECLICK_ANALYSIS_SERVER 와 설정 파일의 server 키가 이 값을 덮는다.
 # 개인정보가 인터넷 구간을 지나므로 외부 경로는 https 가 의무다.
 SERVER = 'https://180.83.245.145:8443/api/v1/exp/analysis'
-DEFAULT_SLEEP_MODEL = 'neuronet'
+DEFAULT_SLEEP_MODEL = 'synthsleepnet'
 DEFAULT_CROP = True
 
 POLL_INTERVAL_SEC = 15
@@ -739,8 +739,9 @@ class RemoteGui:
         }
         if self.var_stim.get().strip():
             params['stimulus'] = self.var_stim.get().strip()
-        if self.var_model.get() != DEFAULT_SLEEP_MODEL:
-            params['sleep_model'] = self.var_model.get()
+        # 항상 명시해서 보낸다. 서버 쪽 기본값에 기대면 exe 와 서버의 업데이트
+        # 순서에 따라 화면에 보이는 모델과 실제로 돈 모델이 달라질 수 있다.
+        params['sleep_model'] = self.var_model.get()
         if not self.var_crop.get():
             params['crop'] = 'false'
         for key, var in self.var_scales.items():
