@@ -50,7 +50,7 @@ def get_args():
     ap.add_argument('--MEASUREMENT_DATE', required=True, help='"YYYY-MM-DD HH:MM"')
     ap.add_argument('--STIMULUS', default=None)
     ap.add_argument('--SLEEP_MODEL', default=None,
-                    choices=[None, 'neuronet', 'synthsleepnet'])
+                    choices=[None, 'neuronet', 'synthsleepnet', 'synthsleepnet_ft'])
     ap.add_argument('--NO_CROP', action='store_true',
                     help='노이즈 크롭 없이 원본 그대로 분석')
     # 설문 — 모르는 항목은 넣지 말 것 (0 은 실제 0점으로 저장된다)

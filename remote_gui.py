@@ -44,7 +44,7 @@ QUESTIONNAIRE_SCALES = (
 # 환경변수 ONECLICK_ANALYSIS_SERVER 와 설정 파일의 server 키가 이 값을 덮는다.
 # 개인정보가 인터넷 구간을 지나므로 외부 경로는 https 가 의무다.
 SERVER = 'https://180.83.245.145:8443/api/v1/exp/analysis'
-DEFAULT_SLEEP_MODEL = 'synthsleepnet'
+DEFAULT_SLEEP_MODEL = 'synthsleepnet_ft'
 DEFAULT_CROP = True
 
 POLL_INTERVAL_SEC = 15
@@ -621,7 +621,7 @@ class RemoteGui:
             row=0, column=0, sticky='w', **pad)
         self.var_model = tk.StringVar(value=DEFAULT_SLEEP_MODEL)
         ttk.Combobox(opt, textvariable=self.var_model, state='readonly',
-                     values=('neuronet', 'synthsleepnet'), width=14).grid(
+                     values=('neuronet', 'synthsleepnet', 'synthsleepnet_ft'), width=16).grid(
             row=0, column=1, sticky='w', **pad)
         self.var_crop = tk.BooleanVar(value=DEFAULT_CROP)
         self._tr(ttk.Checkbutton(opt, text='', variable=self.var_crop),
