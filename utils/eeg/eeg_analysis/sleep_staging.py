@@ -301,7 +301,16 @@ def get_sleep_staging(epoch_data, ch_list, model=DEFAULT_MODEL):
     if model == MODEL_SYNTHSLEEPNET:
         probs = _probs_synthsleepnet(data, actual_ch_names)
     elif model == MODEL_SYNTHSLEEPNET_FT:
-        probs = _probs_synthsleepnet_ft(data, actual_ch_names)
+        try:
+            probs = _probs_synthsleepnet_ft(data, actual_ch_names)
+        except Exception:
+            # 서버 환경(peft/transformers 버전 등)에서 파인튜닝판 로드·추론이 깨져도
+            # 분석 전체가 죽지 않게 선형 프로브로 내린다. 원인은 로그에 남긴다.
+            import traceback
+            traceback.print_exc()
+            print(f'[SleepStaging] 파인튜닝판 실패 → {MODEL_SYNTHSLEEPNET} 로 대체합니다 (위 traceback 확인)')
+            model = MODEL_SYNTHSLEEPNET
+            probs = _probs_synthsleepnet(data, actual_ch_names)
     elif model == MODEL_NEURONET:
         probs = _probs_neuronet(data, actual_ch_names)
     else:
