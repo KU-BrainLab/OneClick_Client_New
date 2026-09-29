@@ -27,11 +27,20 @@ _FT_CKPT       = _CKPT_ROOT / 'fine_tuning' / 'sleep_stage' / 'best_model.pth'
 _NEURONET_CKPT_ROOT = _PROJECT_ROOT / 'neuronet' / 'ckpt'
 _NEURONET_N_FOLDS   = 5
 
+# U-Sleep: SLEEPYLAND(NSRR 17개 코호트 27,494건) 학습 가중치를 PyTorch 로 옮긴 것.
+# 저장소에 포함돼 있어(각 12.5MB, MIT) 서버에 따로 복사할 필요가 없다.
+_USLEEP_CKPT_DIR = _EEG_DIR / 'usleep' / 'ckpt'
+_USLEEP_CKPT     = _USLEEP_CKPT_DIR / 'usleep-nsrr-2024_eeg.pt'
+# EEG 단일채널 모델을 채널마다 따로 돌려 확률을 평균한다(저자의 majority vote).
+# 학습 채널군에 C3/C4·F3/F4·P3/P4(M1/M2/AVG 유도)가 모두 들어 있다.
+_USLEEP_CHANNELS = ('C3', 'C4', 'F3', 'F4')
+
 # 선택 가능한 수면단계 모델
 MODEL_SYNTHSLEEPNET    = 'synthsleepnet'        # 선형 프로브 (epoch 단독)
 MODEL_SYNTHSLEEPNET_FT = 'synthsleepnet_ft'     # 파인튜닝 + 20 epoch 시간문맥
 MODEL_NEURONET         = 'neuronet'
-AVAILABLE_MODELS    = (MODEL_SYNTHSLEEPNET, MODEL_SYNTHSLEEPNET_FT, MODEL_NEURONET)
+MODEL_USLEEP           = 'usleep'               # U-Sleep (SLEEPYLAND 가중치, EEG 단일채널 soft vote)
+AVAILABLE_MODELS    = (MODEL_SYNTHSLEEPNET, MODEL_SYNTHSLEEPNET_FT, MODEL_NEURONET, MODEL_USLEEP)
 # SHHS C3/C4 로 학습돼 원클릭 채널과 유도가 맞는 SynthSleepNet 계열을 기본으로 한다.
 # 파인튜닝판(20 epoch 문맥)이 SHHS 평가에서 선형 프로브보다 정확도 80.0→87.3,
 # MF1 70.0→81.6 이고 로컬 측정 16건에서도 전이가 가장 적고 delta 파워 순서가
@@ -51,6 +60,7 @@ _NEURONET_CHANNELS = ('C4', 'C3')
 _model_cache = None            # SynthSleepNet, 최초 1회만 로드
 _ft_cache = None               # SynthSleepNet 파인튜닝판, 최초 1회만 로드
 _neuronet_cache = None         # NeuroNet 5-fold, 최초 1회만 로드
+_usleep_cache = None           # U-Sleep, 최초 1회만 로드
 
 
 def _get_model():
@@ -135,6 +145,36 @@ def _probs_synthsleepnet_ft(data, actual_ch_names):
                 prob_sum[s:s + T] += out[i]
                 count[s:s + T] += 1
     return (prob_sum / count)[:n]
+
+
+def _get_usleep():
+    """U-Sleep(PyTorch 이식판)을 로드한다. torch/scipy 외 의존성 없음."""
+    global _usleep_cache
+    if _usleep_cache is None:
+        from usleep.usleep_torch import load_model
+        if not _USLEEP_CKPT.exists():
+            raise FileNotFoundError(f'U-Sleep 가중치가 없습니다: {_USLEEP_CKPT} (git pull 로 받아집니다)')
+        print('[U-Sleep] 모델 로드 중...')
+        _usleep_cache = load_model(str(_USLEEP_CKPT), n_channels=1)
+        print(f'[U-Sleep] 로드 완료. 채널: {_USLEEP_CHANNELS} (각각 채점 후 확률 평균)')
+    return _usleep_cache
+
+
+def _probs_usleep(raw_epochs, actual_ch_names, sfreq):
+    """U-Sleep 확률 [n_epochs, 5].
+
+    raw_epochs: 스케일링 전 epoch 데이터 [n_epochs, n_ch, n_times]. U-Sleep 은 자체 전처리
+    (20 IQR 클리핑 → 128 Hz 리샘플 → RobustScaler)를 연속 신호에 적용하므로 epoch 을
+    시간축으로 이어 붙여 넣는다. 밤 전체를 한 번에 처리하는 완전 합성곱 모델이라 길이 제한이 없다.
+    """
+    from usleep.usleep_torch import predict_probs
+    model = _get_usleep()
+    chans = [c for c in _USLEEP_CHANNELS if c in actual_ch_names]
+    if not chans:
+        raise ValueError(f'U-Sleep 입력 채널 {_USLEEP_CHANNELS} 이 없습니다: {actual_ch_names}')
+    idx = [actual_ch_names.index(c) for c in chans]
+    x = np.asarray(raw_epochs)[:, idx, :].transpose(1, 0, 2).reshape(len(idx), -1)  # [n_ch, n_ep*n_times]
+    return predict_probs(model, x, sfreq, channels_as_votes=True)
 
 
 def _get_neuronet():
@@ -273,6 +313,7 @@ def get_sleep_staging(epoch_data, ch_list, model=DEFAULT_MODEL):
     model: 'synthsleepnet_ft' (SHHS1 학습, 파인튜닝 + 20 epoch 시간문맥, 기본값)
            'synthsleepnet'    (SHHS1 학습, 선형 프로브, epoch 단독)
            'neuronet'         (Sleep-EDFX 학습, 5-fold 앙상블, 구버전)
+           'usleep'           (U-Sleep, NSRR 17개 코호트 학습(SLEEPYLAND), EEG 단일채널 soft vote)
     ch_list 는 하위호환을 위해 남겨두지만 쓰지 않는다 — 실제 채널 이름으로 인덱싱한다.
     """
     if model == MODEL_SYNTHSLEEPNET_FT and not _FT_CKPT.exists():
@@ -291,8 +332,9 @@ def get_sleep_staging(epoch_data, ch_list, model=DEFAULT_MODEL):
         epoch_data.filter(l_freq=None, h_freq=40., verbose=False)
 
     # 스케일링 (median)
+    raw_epochs = epoch_data.get_data()                  # U-Sleep 은 자체 전처리를 쓴다
     scaler = mne.decoding.Scaler(info=info, scalings='median')
-    data = scaler.fit_transform(epoch_data.get_data())  # [n_epochs, n_ch, n_times]
+    data = scaler.fit_transform(raw_epochs)             # [n_epochs, n_ch, n_times]
 
     # 실제 epoch 에 남아있는 채널 목록 (O1/O2 드롭 후 기준).
     # ch_list 인자는 15채널짜리라 인덱스가 어긋난다 — 쓰지 않는다(_pick_channel 주석 참고).
@@ -313,6 +355,8 @@ def get_sleep_staging(epoch_data, ch_list, model=DEFAULT_MODEL):
             probs = _probs_synthsleepnet(data, actual_ch_names)
     elif model == MODEL_NEURONET:
         probs = _probs_neuronet(data, actual_ch_names)
+    elif model == MODEL_USLEEP:
+        probs = _probs_usleep(raw_epochs, actual_ch_names, info['sfreq'])
     else:
         raise ValueError(
             f"알 수 없는 수면단계 모델: {model!r} (가능: {', '.join(AVAILABLE_MODELS)})")

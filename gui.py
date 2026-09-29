@@ -195,7 +195,7 @@ class App(tk.Tk):
             # sleep_staging 이 torch/mne 를 모듈 단위로 끌고 와 GUI 시작이 느려지기 때문.
             # 오타를 넣어도 get_sleep_staging 이 ValueError 로 걸러낸다.
             ('수면단계 모델 (SLEEP_MODEL)', 'sleep_model', 'combo',
-                                        ['neuronet', 'synthsleepnet', 'synthsleepnet_ft']),
+                                        ['neuronet', 'synthsleepnet', 'synthsleepnet_ft', 'usleep']),
         ]
 
         # 설문 점수. 모르는 항목은 비워 둔다 — 0 을 넣으면 실제로 0점을
