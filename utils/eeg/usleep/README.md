@@ -21,6 +21,12 @@
 - SHHS1 eval 31명(C4+C3 soft vote): 2024_eeg ACC 86.2 / MF1 79.9 / κ 0.807,
   2022_eeg 88.3 / 82.3 / 0.838 (같은 구간 SynthSleepNet FT 87.0 / 81.0 / 0.822).
   단, SHHS1 은 SLEEPYLAND 학습 데이터에 포함돼 있어 U-Sleep 에 유리한 비교다.
+- 원클릭 실측정 16건(1,410 epoch, 낮 측정, 정답 없음): 2024_eeg C3C4F3F4 soft vote 가
+  단계 전이 18.2/100 epoch(SynthSleepNet FT 28.4, NeuroNet 38.8), 단계별 delta 파워 순서
+  ρ 0.56, W 의 alpha 우위 12/14 로 네 모델 중 가장 일관됐다. 2022_eeg 는 ρ 0.34~0.41 로
+  낮아 2024 를 기본으로 둔다. 채널군 C3C4 vs C3C4F3F4 는 κ 0.89 로 거의 같다.
+  REM 비율은 5.5% 로 FT(17%)·NeuroNet(16%)보다 훨씬 낮다 — EOG 없이 EEG 만으로 REM 을
+  보는 한계일 수도, 낮잠에 REM 이 적은 게 맞을 수도 있어 PSG 라벨로 확인이 필요하다.
 
 ## 입력 규약 (원본 psg_utils 와 동일)
 1. 채널별 |x| > 20·IQR 클리핑 → 2. `scipy.signal.resample_poly` 로 128 Hz → 3. RobustScaler(중앙값 0, IQR 1)
