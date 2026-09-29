@@ -39,7 +39,7 @@ def run_analysis(args_dict, log_queue):
     sex       = args_dict['SEX']
     debug     = args_dict['DEBUG_MODE']
     crop      = args_dict.get('CROP_MODE', True)
-    sleep_model = args_dict.get('SLEEP_MODEL', 'synthsleepnet_ft')
+    sleep_model = args_dict.get('SLEEP_MODEL', 'usleep')
 
     data_path = os.path.abspath('data')
     save_path = os.path.abspath(os.path.join('data', 'clean'))
@@ -234,7 +234,7 @@ class App(tk.Tk):
         self._vars['mdate'].set('2026-03-10-1509')
         self._vars['birth'].set('1965-06-10')
         self._vars['fname'].set('2026-03-10-1509.csv')
-        self._vars['sleep_model'].set('synthsleepnet_ft')
+        self._vars['sleep_model'].set('usleep')
 
         # DEBUG MODE / CROP MODE 체크박스
         self._debug_var = tk.BooleanVar(value=False)

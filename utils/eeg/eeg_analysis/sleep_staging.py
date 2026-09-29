@@ -41,13 +41,14 @@ MODEL_SYNTHSLEEPNET_FT = 'synthsleepnet_ft'     # 파인튜닝 + 20 epoch 시간
 MODEL_NEURONET         = 'neuronet'
 MODEL_USLEEP           = 'usleep'               # U-Sleep (SLEEPYLAND 가중치, EEG 단일채널 soft vote)
 AVAILABLE_MODELS    = (MODEL_SYNTHSLEEPNET, MODEL_SYNTHSLEEPNET_FT, MODEL_NEURONET, MODEL_USLEEP)
-# SHHS C3/C4 로 학습돼 원클릭 채널과 유도가 맞는 SynthSleepNet 계열을 기본으로 한다.
-# 파인튜닝판(20 epoch 문맥)이 SHHS 평가에서 선형 프로브보다 정확도 80.0→87.3,
-# MF1 70.0→81.6 이고 로컬 측정 16건에서도 전이가 가장 적고 delta 파워 순서가
-# 가장 잘 지켜져 기본값으로 둔다. 체크포인트(603MB)가 없으면 선형 프로브로
-# 자동 대체한다(get_sleep_staging). NeuroNet 은 Sleep-EDFX(Fpz-Cz) 학습이라
-# 유도가 다르다 — 예비용으로 남긴다.
-DEFAULT_MODEL       = MODEL_SYNTHSLEEPNET_FT
+# 기본값은 U-Sleep (2026-09-29). NSRR 17개 코호트 27,494건으로 학습된 가중치라
+# 학습 데이터 폭이 가장 넓고, 로컬 측정 16건에서 단계 전이가 가장 적고(18/100 epoch)
+# 단계별 delta 파워 순서가 가장 잘 지켜졌으며(ρ 0.56), 100 epoch 채점에 0.5 s 다.
+# SHHS1 eval 31명 정확도는 86.2 로 SynthSleepNet 파인튜닝판(87.0)과 동급.
+# 가중치(12.5MB)는 저장소에 포함돼 있어 없을 일이 없지만, 없거나 추론이 실패하면
+# 파인튜닝판 → 선형 프로브 순으로 대체한다(get_sleep_staging).
+# SynthSleepNet 계열은 SHHS C3/C4 학습, NeuroNet 은 Sleep-EDFX(Fpz-Cz) 학습 — 예비용.
+DEFAULT_MODEL       = MODEL_USLEEP
 
 # 두 모델 모두 C4, C3 두 채널만 쓴다.
 # ch_names 매핑: 서버 학습 채널명 → 원클릭 채널 인덱스용 이름
@@ -316,6 +317,9 @@ def get_sleep_staging(epoch_data, ch_list, model=DEFAULT_MODEL):
            'usleep'           (U-Sleep, NSRR 17개 코호트 학습(SLEEPYLAND), EEG 단일채널 soft vote)
     ch_list 는 하위호환을 위해 남겨두지만 쓰지 않는다 — 실제 채널 이름으로 인덱싱한다.
     """
+    if model == MODEL_USLEEP and not _USLEEP_CKPT.exists():
+        print(f'[SleepStaging] U-Sleep 가중치가 없어 {MODEL_SYNTHSLEEPNET_FT} 로 대체합니다: {_USLEEP_CKPT}')
+        model = MODEL_SYNTHSLEEPNET_FT
     if model == MODEL_SYNTHSLEEPNET_FT and not _FT_CKPT.exists():
         # 서버에 파인튜닝 체크포인트가 아직 없어도 분석이 죽지 않게 선형 프로브로 내린다.
         print(f'[SleepStaging] 파인튜닝 체크포인트가 없어 {MODEL_SYNTHSLEEPNET} 로 대체합니다: {_FT_CKPT}')
@@ -356,7 +360,16 @@ def get_sleep_staging(epoch_data, ch_list, model=DEFAULT_MODEL):
     elif model == MODEL_NEURONET:
         probs = _probs_neuronet(data, actual_ch_names)
     elif model == MODEL_USLEEP:
-        probs = _probs_usleep(raw_epochs, actual_ch_names, info['sfreq'])
+        try:
+            probs = _probs_usleep(raw_epochs, actual_ch_names, info['sfreq'])
+        except Exception:
+            # 분석 전체가 죽지 않게 선형 프로브로 내린다 (40 Hz 저역통과 없이 들어가지만
+            # 종전 동작과 같다). 원인은 로그에 남긴다.
+            import traceback
+            traceback.print_exc()
+            print(f'[SleepStaging] U-Sleep 실패 → {MODEL_SYNTHSLEEPNET} 로 대체합니다 (위 traceback 확인)')
+            model = MODEL_SYNTHSLEEPNET
+            probs = _probs_synthsleepnet(data, actual_ch_names)
     else:
         raise ValueError(
             f"알 수 없는 수면단계 모델: {model!r} (가능: {', '.join(AVAILABLE_MODELS)})")
