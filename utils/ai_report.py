@@ -12,9 +12,11 @@
 이 단계가 실패해도 측정 데이터는 이미 올라가 있다. 따라서 예외를 밖으로 던지지
 않고 경고만 남긴다 — 리포트는 웹에서 다시 만들 수 있다.
 """
+import ipaddress
 import json
 import os
 import time
+from urllib.parse import urlsplit
 
 import requests
 
@@ -77,9 +79,22 @@ def api_base(server):
     return server if '://' in server else 'http://' + server
 
 
+def _host_is_ip(base):
+    try:
+        ipaddress.ip_address(urlsplit(base).hostname or '')
+        return True
+    except ValueError:
+        return False
+
+
 def tls_verify(base):
-    """requests 의 verify 인자 — 연구실 CA 가 있으면 그걸로 검증한다."""
-    if base.startswith('https://') and os.path.exists(CA_FILE):
+    """requests 의 verify 인자.
+
+    IP 로 직접 붙는 서버(교내 8443)는 연구실 자체 서명 인증서라 함께 배포되는
+    CA(oneclick-ca.pem)로 검증하고, 도메인(ntxoneclick.co.kr)은 공인 인증서라
+    certifi 신뢰 저장소로 검증한다. http 면 검증할 것이 없다.
+    """
+    if base.startswith('https://') and _host_is_ip(base) and os.path.exists(CA_FILE):
         return CA_FILE
     return True
 
@@ -129,7 +144,7 @@ def _poll(server, pk, log):
 def request_ai_report(server, create_response, log=print):
     """업로드된 실험의 AI 리포트를 미리 생성해 둔다.
 
-    server : '163.152.155.234:8000' 형태
+    server : 'https://ntxoneclick.co.kr' 또는 '<IP>:8000' 형태
     create_response : POST /api/v1/exp/ 의 응답 객체
 
     성공하면 True. 실패해도 예외를 던지지 않는다.

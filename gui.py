@@ -128,7 +128,7 @@ def run_analysis(args_dict, log_queue):
 
     if not debug:
         # 인터넷 구간이므로 https 가 의무다 (안전성 확보조치 기준 제7조④).
-        ip = 'https://163.152.155.234:8443'
+        ip = 'https://ntxoneclick.co.kr'
         s_index = ['male', 'female']
         try:
             resp = requests.post(

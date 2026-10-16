@@ -11,6 +11,7 @@ CSV 와 피험자 정보를 분석 서버(또는 Django 중계)로 보내고, �
 서버 주소는 화면에 띄우지 않는다 — 아래 SERVER 또는 환경변수
 ONECLICK_ANALYSIS_SERVER 로 정한다.
 """
+import ipaddress
 import json
 import os
 import queue
@@ -20,6 +21,7 @@ import threading
 import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
+from urllib.parse import urlsplit
 
 import requests
 
@@ -39,11 +41,12 @@ QUESTIONNAIRE_SCALES = (
 )
 
 # ── 설정 (코드에서 수정) ─────────────────────────────────────────────
-# 외부망(웹서버 중계): 'https://163.152.155.234:8443/api/v1/exp/analysis'
+# 외부망(웹서버 중계): 'https://ntxoneclick.co.kr/api/v1/exp/analysis' (공인 인증서)
+#   교내 IP 직결: 'https://163.152.155.234:8443/api/v1/exp/analysis' (연구실 CA 검증)
 # 연구실 내부망(직접) : '<연구실서버IP>:8500' (스킴 없으면 http 로 해석)
 # 환경변수 ONECLICK_ANALYSIS_SERVER 와 설정 파일의 server 키가 이 값을 덮는다.
 # 개인정보가 인터넷 구간을 지나므로 외부 경로는 https 가 의무다.
-SERVER = 'https://163.152.155.234:8443/api/v1/exp/analysis'
+SERVER = 'https://ntxoneclick.co.kr/api/v1/exp/analysis'
 DEFAULT_SLEEP_MODEL = 'usleep'
 DEFAULT_CROP = True
 
@@ -352,13 +355,18 @@ def _api_base(server):
 def _tls_verify(base):
     """requests 의 verify 인자.
 
-    서버가 자체 서명 인증서를 쓰므로, 함께 배포되는 연구실 CA 공개
-    인증서(oneclick-ca.pem)가 있으면 그걸로 서버를 검증한다.
+    IP 로 직접 붙는 서버(교내 8443)는 자체 서명 인증서라 함께 배포되는 연구실
+    CA(oneclick-ca.pem)로, 도메인(ntxoneclick.co.kr)은 공인 인증서라 시스템
+    신뢰 저장소(certifi)로 검증한다.
     """
     if base.startswith('https://'):
-        ca = _resource('oneclick-ca.pem')
-        if os.path.exists(ca):
-            return ca
+        try:
+            ipaddress.ip_address(urlsplit(base).hostname or '')
+            ca = _resource('oneclick-ca.pem')
+            if os.path.exists(ca):
+                return ca
+        except ValueError:
+            pass
     return True
 
 
@@ -826,7 +834,7 @@ def run_check(out_path):
         verify = _tls_verify(base)
         lines.append('암호화: %s' % (
             'TLS + 연구실 CA 검증' if isinstance(verify, str)
-            else ('TLS (시스템 신뢰 저장소)' if base.startswith('https://')
+            else ('TLS + 공인 인증서 검증' if base.startswith('https://')
                   else '없음 — 내부망 직결용')))
         try:
             r = requests.get('%s/jobs/1' % base, timeout=10, verify=verify)
