@@ -332,6 +332,17 @@ def _resource(name):
     return os.path.join(base, name)
 
 
+def build_info():
+    """빌드 시각·커밋. build_remote_gui.py 가 build_info.txt 를 만들어 exe 에 넣는다.
+    소스로 직접 실행하면 파일이 없으므로 'dev' 로 표시한다 — 어느 exe 인지 헷갈리지 않게
+    창 제목·크레딧·--check 결과에 모두 찍는다."""
+    try:
+        with open(_resource('build_info.txt'), encoding='utf-8') as f:
+            return f.read().strip() or 'dev'
+    except OSError:
+        return 'dev'
+
+
 def _api_base(server):
     """'host:port' 나 'https://…' 를 스킴 있는 베이스 URL 로."""
     server = server.strip().rstrip('/')
@@ -508,7 +519,7 @@ class RemoteGui:
         return widget
 
     def _retranslate(self):
-        self.root.title(t('title'))
+        self.root.title('%s  (Last update: %s)' % (t('title'), build_info()))
         for widget, key in self._tx:
             widget.configure(text=t(key))
         # 성별 콤보는 값이 아니라 표시만 번역한다 (서버로는 male/female).
@@ -675,7 +686,7 @@ class RemoteGui:
         row += 1
 
         # 제작자 크레딧 — 고유명사라 언어 전환과 무관하게 고정
-        ttk.Label(frm, text='Made by Youngseok Kim',
+        ttk.Label(frm, text='Made by Youngseok Kim  ·  Last update: %s' % build_info(),
                   foreground='#8a8f98', font=('Segoe UI', 8)).grid(
             row=row, column=0, columnspan=4, sticky='e', padx=8)
 
@@ -802,6 +813,7 @@ def run_check(out_path):
     때 쓴다. 실행 파일이 제대로 묶였는지도 이걸로 드러난다.
     """
     lines = ['OneClick 원격 제출 — 배포 점검',
+             'Last update: %s' % build_info(),
              'python %s' % sys.version.split()[0],
              'requests %s' % requests.__version__,
              '실행 형태: %s' % ('실행 파일' if getattr(sys, 'frozen', False)

@@ -13,6 +13,7 @@
 서버가 바뀌면 다시 빌드하거나, 측정 PC 의 ~/.oneclick_remote_gui.json 에
 {"server": "..."} 를 넣어 덮으면 된다.
 """
+import datetime
 import os
 import shutil
 import subprocess
@@ -54,6 +55,17 @@ def main():
         print('경고: oneclick-ca.pem 이 없습니다. 웹서버에서 인증서를 만들고 '
               'CA 공개 파일을 저장소 루트에 복사한 뒤 다시 빌드하세요 — '
               '없으면 https 접속이 인증서 오류로 실패합니다.')
+    # 빌드 날짜·커밋을 exe 에 넣는다 — 창 제목·크레딧·--check 에 'Last update' 로 표시된다.
+    try:
+        commit = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], cwd=HERE,
+                                         stderr=subprocess.DEVNULL).decode().strip()
+    except Exception:
+        commit = 'nogit'
+    info = os.path.join(HERE, 'build_info.txt')
+    with open(info, 'w', encoding='utf-8') as f:
+        f.write('%s (%s)' % (datetime.date.today().isoformat(), commit))
+    argv += ['--add-data', info + os.pathsep + '.']
+    print('Last update 표시:', open(info, encoding='utf-8').read())
     # 분석 파이프라인이 딸려 들어가지 않게 저장소를 탐색 경로에서 뺀다.
     # remote_gui.py 는 저장소 모듈을 import 하지 않으므로 이걸로 충분하다.
     argv += ['--paths', os.path.join(HERE, '_nothing')]
@@ -65,6 +77,8 @@ def main():
     exe = os.path.join(HERE, 'dist', NAME + '.exe')
     print('\n완성: %s (%.1fMB)' % (exe, os.path.getsize(exe) / 1e6))
     shutil.rmtree(os.path.join(HERE, 'build'), ignore_errors=True)
+    if os.path.exists(info):
+        os.remove(info)
     print('측정 PC 에는 이 파일 하나만 복사하면 됩니다.')
 
 
