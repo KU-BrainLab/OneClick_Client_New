@@ -39,11 +39,11 @@ QUESTIONNAIRE_SCALES = (
 )
 
 # ── 설정 (코드에서 수정) ─────────────────────────────────────────────
-# 외부망(웹서버 중계): 'https://180.83.245.145:8443/api/v1/exp/analysis'
+# 외부망(웹서버 중계): 'https://163.152.155.234:8443/api/v1/exp/analysis'
 # 연구실 내부망(직접) : '<연구실서버IP>:8500' (스킴 없으면 http 로 해석)
 # 환경변수 ONECLICK_ANALYSIS_SERVER 와 설정 파일의 server 키가 이 값을 덮는다.
 # 개인정보가 인터넷 구간을 지나므로 외부 경로는 https 가 의무다.
-SERVER = 'https://180.83.245.145:8443/api/v1/exp/analysis'
+SERVER = 'https://163.152.155.234:8443/api/v1/exp/analysis'
 DEFAULT_SLEEP_MODEL = 'usleep'
 DEFAULT_CROP = True
 

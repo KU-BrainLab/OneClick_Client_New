@@ -294,7 +294,7 @@ if __name__ == '__main__':
 
     headers = {'Content-type': 'application/json', 'Accept': '*/*'}
     # 인터넷 구간이므로 https 가 의무다 (안전성 확보조치 기준 제7조④).
-    ip = 'https://180.83.245.145:8443'
+    ip = 'https://163.152.155.234:8443'
     s_index = ['male', 'female']
 
 

@@ -129,7 +129,7 @@ def _poll(server, pk, log):
 def request_ai_report(server, create_response, log=print):
     """업로드된 실험의 AI 리포트를 미리 생성해 둔다.
 
-    server : '180.83.245.145:8000' 형태
+    server : '163.152.155.234:8000' 형태
     create_response : POST /api/v1/exp/ 의 응답 객체
 
     성공하면 True. 실패해도 예외를 던지지 않는다.
