@@ -117,6 +117,7 @@ STRINGS = {
         'st_queued_ahead': '대기열 — 앞에 {n}건 · 경과 {elapsed}',
         'st_progress': '{state} · 경과 {elapsed} · 마지막 로그 {since}초 전',
         'log_timing': '소요 시간 — 압축 {c:.0f}초 · 업로드 {u:.0f}초 · 대기 {w:.0f}초 · 분석 {a:.0f}초\n',
+        'log_skipped': '(… 로그 {n}바이트 건너뜀 — 전체는 서버의 run.log 에 있습니다)\n',
         'state_queued': '대기열',
         'state_running': '분석 중',
         'state_done': '완료',
@@ -190,6 +191,7 @@ STRINGS = {
         'st_queued_ahead': 'Queued - {n} ahead · elapsed {elapsed}',
         'st_progress': '{state} · elapsed {elapsed} · last log {since}s ago',
         'log_timing': 'Time - compress {c:.0f}s · upload {u:.0f}s · wait {w:.0f}s · analysis {a:.0f}s\n',
+        'log_skipped': '(... {n} bytes of log skipped - the full run.log is on the server)\n',
         'state_queued': 'queued',
         'state_running': 'analyzing',
         'state_done': 'done',
@@ -267,6 +269,7 @@ STRINGS = {
         'st_queued_ahead': '待機列 — 前に{n}件 · 経過 {elapsed}',
         'st_progress': '{state} · 経過 {elapsed} · 最終ログ {since}秒前',
         'log_timing': '所要時間 — 圧縮 {c:.0f}秒 · アップロード {u:.0f}秒 · 待機 {w:.0f}秒 · 解析 {a:.0f}秒\n',
+        'log_skipped': '(… ログ {n}バイト省略 — 全文はサーバーの run.log にあります)\n',
         'state_queued': '待機列',
         'state_running': '解析中',
         'state_done': '完了',
@@ -435,7 +438,8 @@ class _ProgressFile:
 
 
 def _gzip_to_temp(path, notify):
-    """CSV 를 gzip 임시 파일로. 1MB 마다 notify(done, total). 호출자가 지운다."""
+    """CSV 를 gzip 임시 파일로. 1MB 마다 notify(done, total). 호출자가 지운다.
+    중간에 실패하면(디스크 부족 등) 쓰다 만 임시 파일을 지우고 예외를 올린다."""
     total = os.path.getsize(path)
     done = 0
     tmp = tempfile.NamedTemporaryFile(prefix='oneclick_', suffix='.csv.gz', delete=False)
@@ -449,8 +453,14 @@ def _gzip_to_temp(path, notify):
                 gz.write(chunk)
                 done += len(chunk)
                 notify(done, total)
-    finally:
+    except BaseException:
         tmp.close()
+        try:
+            os.remove(tmp.name)
+        except OSError:
+            pass
+        raise
+    tmp.close()
     return tmp.name
 
 
@@ -459,7 +469,8 @@ def _server_supports_gzip(base, verify):
     확실할 때만 압축한다. 새 서버는 GET /jobs/0 에 기능 목록({'gzip': true, ...})을 주고, 옛 서버는 404."""
     try:
         r = requests.get('%s/jobs/0' % base, timeout=15, verify=verify)
-        return r.status_code == 200 and r.json().get('gzip') is True
+        body = r.json()
+        return r.status_code == 200 and isinstance(body, dict) and body.get('gzip') is True
     except (requests.RequestException, ValueError):
         return False
 
@@ -467,6 +478,41 @@ def _server_supports_gzip(base, verify):
 def _mmss(sec):
     sec = max(0, int(sec))
     return '%02d:%02d' % (sec // 60, sec % 60)
+
+
+class LogFollower:
+    """상태 응답에서 아직 안 보여준 로그만 골라낸다.
+
+    서버는 run.log 의 마지막 8000바이트(log_tail)만 주고, 그 창이 파일의 어디서 시작하는지
+    (log_from)와 파일 전체 크기(log_bytes)를 함께 준다. 창의 글자 수만 비교하면 로그가 창보다
+    커지는 순간(창은 늘 8000바이트) 새 줄을 못 알아보고 화면이 멈춘다. 그래서 파일 크기로
+    '새로 늘어난 바이트 수' 를 세고 그만큼을 창 끝에서 잘라 낸다. 한 번의 조회 사이에 창보다
+    많이 늘었으면 못 본 양을 함께 돌려줘 '중략' 을 표시할 수 있게 한다.
+    옛 서버(log_bytes 없음)는 예전처럼 창 길이로만 판단한다.
+    """
+
+    def __init__(self):
+        self.seen = 0      # 새 서버: 보여준 바이트 수 / 옛 서버: 보여준 tail 글자 수
+
+    def take(self, st):
+        """(새 로그 텍스트, 건너뛴 바이트 수). 새 것이 없으면 ('', 0)."""
+        tail = st.get('log_tail') or ''
+        total = st.get('log_bytes')
+        if total is None:                          # 옛 서버
+            if len(tail) > self.seen:
+                new, self.seen = tail[self.seen:], len(tail)
+                return new, 0
+            if len(tail) < self.seen:              # 창이 밀렸다
+                self.seen = len(tail)
+            return '', 0
+        if total <= self.seen:
+            return '', 0
+        new = total - self.seen
+        self.seen = total
+        window = total - (st.get('log_from') or 0)   # 창에 든 바이트 수
+        if new >= window:
+            return tail, new - window
+        return tail.encode('utf-8')[-new:].decode('utf-8', 'replace'), 0
 
 
 def _progress_text(state, queue_ahead, since_accept, since_log):
@@ -492,22 +538,23 @@ def run_submission(server, file_path, params, q):
         base = _api_base(server)
         verify = _tls_verify(base)
 
-        # 1) 압축. 실패하면 원본 그대로 보낸다(서버는 둘 다 받는다).
-        t0 = time.time()
+        # 1) 압축. 서버가 모르는 버전이거나 압축이 실패하면 원본 그대로 보낸다(서버는 둘 다 받는다).
         upload_path, upload_params = file_path, dict(params)
-        try:
-            if not _server_supports_gzip(base, verify):
-                raise ValueError('server without gzip support')
+        compress_sec = 0.0
+        if _server_supports_gzip(base, verify):
+            t0 = time.time()
 
             def notify_gz(done, total):
                 q.put(('status', t('st_compress', pct=int(done * 100 / max(total, 1)))))
-            gz_path = _gzip_to_temp(file_path, notify_gz)
-            upload_path, upload_params = gz_path, dict(params, compressed='gzip')
-            q.put(('log', t('log_compressed', raw=size_mb, gz=os.path.getsize(gz_path) / 1e6,
-                            sec=time.time() - t0)))
-        except (OSError, ValueError):
-            gz_path = None
-        compress_sec = time.time() - t0
+            try:
+                gz_path = _gzip_to_temp(file_path, notify_gz)
+            except (OSError, ValueError):
+                gz_path = None
+            else:
+                upload_path, upload_params = gz_path, dict(params, compressed='gzip')
+                compress_sec = time.time() - t0
+                q.put(('log', t('log_compressed', raw=size_mb, gz=os.path.getsize(gz_path) / 1e6,
+                                sec=compress_sec)))
 
         # 2) 업로드 (응답이 오면 중계가 분석 서버까지 넘긴 것)
         def notify(sent, total):
@@ -536,46 +583,55 @@ def run_submission(server, file_path, params, q):
         q.put(('log', t('log_accepted', job=job_id)))
 
         # 3) 폴링. 서버 조회는 POLL_INTERVAL_SEC 마다, 상태 문구는 매초.
+        #    제한 시간은 상태가 바뀔 때(대기열 → 분석 중)마다 다시 센다 — 대기열이 길어도
+        #    분석 자체에 POLL_LIMIT_SEC 를 온전히 준다.
         deadline = time.time() + POLL_LIMIT_SEC
-        seen = 0
+        follow = LogFollower()
         last_status = 'queued'
         queue_ahead = resp.get('queue_ahead') or 0
         last_log_at = t_accept
         next_poll = time.time()
+        retrying = False
         st = {}
-        q.put(('status', _progress_text(last_status, queue_ahead, 0, 0)))
+
+        def status_line():
+            text = _progress_text(last_status, queue_ahead,
+                                  time.time() - t_accept, time.time() - last_log_at)
+            return (text + ' · ' + t('st_retry', job=job_id)) if retrying else text
+
+        q.put(('status', status_line()))
         while time.time() < deadline:
             now = time.time()
             if now < next_poll:
                 time.sleep(min(STATUS_TICK_SEC, next_poll - now))
-                q.put(('status', _progress_text(last_status, queue_ahead,
-                                                time.time() - t_accept, time.time() - last_log_at)))
+                q.put(('status', status_line()))
                 continue
             next_poll = now + POLL_INTERVAL_SEC
             try:
                 st = requests.get('%s/jobs/%s' % (base, job_id),
                                   timeout=30, verify=verify).json()
             except (requests.RequestException, ValueError):
-                q.put(('status', t('st_retry', job=job_id)))
+                st = {}
+            # 중계를 거치면 서버 장애가 예외가 아니라 {'error':...} 로 온다. 일시 장애로 보고
+            # 계속 조회한다 — 본 로그 위치(follow)를 건드리지 않아야 복구 후 로그가 중복되지 않는다.
+            if not isinstance(st, dict) or st.get('status') is None:
+                retrying = True
+                q.put(('status', status_line()))
                 continue
-            # 중계를 거치면 서버 장애가 예외가 아니라 {'error':...} 로 온다.
-            # seen 을 건드리지 않고 넘어가야 복구 후 로그가 중복되지 않는다.
-            if st.get('status') is None:
-                q.put(('status', t('st_retry', job=job_id)))
-                continue
+            retrying = False
 
-            tail = st.get('log_tail') or ''
-            if len(tail) > seen:
-                q.put(('log', tail[seen:]))
-                seen = len(tail)
-                last_log_at = time.time()
-            elif len(tail) < seen:      # 서버 쪽 tail 윈도가 밀렸다
-                seen = len(tail)
+            new_log, skipped = follow.take(st)
+            if skipped:
+                q.put(('log', t('log_skipped', n=skipped)))
+            if new_log:
+                q.put(('log', new_log))
+            if new_log or skipped:
                 last_log_at = time.time()
             queue_ahead = st.get('queue_ahead') or 0
-            last_status = st['status']
-            q.put(('status', _progress_text(last_status, queue_ahead,
-                                            time.time() - t_accept, time.time() - last_log_at)))
+            if st['status'] != last_status:
+                last_status = st['status']
+                deadline = time.time() + POLL_LIMIT_SEC
+            q.put(('status', status_line()))
 
             if last_status in ('done', 'failed'):
                 # 어디서 시간이 갔는지: 서버 시각이 있으면 그걸로, 없으면 제출 PC 기준으로.

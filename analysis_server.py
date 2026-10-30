@@ -14,8 +14,11 @@ API
        본문 = CSV 바이트
        -> {"job": <id>, "status": "queued"}
   GET  /jobs/<id>
-       -> {"job", "status": queued|running|done|failed,
-           "exp_pk", "error", "log_tail"}
+       -> {"job", "status": queued|running|done|failed, "exp_pk", "error",
+           "log_tail"(run.log 꼬리), "log_bytes"(run.log 전체 크기), "log_from"(꼬리 시작 위치),
+           "submitted"/"started"/"finished"(시각), "queue_ahead"(앞 작업 수), "server_time"}
+  GET  /jobs/0
+       -> 서버 기능 목록 {"gzip": true, "queue_length", "server_time"} (압축 업로드 지원 확인용)
 
 실행
   python analysis_server.py [--port 8500]
@@ -54,8 +57,16 @@ SUBJECT_FIELDS = ('name', 'age', 'birth', 'sex', 'measurement_date')
 OPTION_FIELDS = ('stimulus', 'sleep_model', 'crop')
 QUESTIONNAIRE_FIELDS = tuple(k for k, _l, _d in QUESTIONNAIRE_SCALES)
 
-# 업로드 상한. 측정 CSV 실측이 130~165MB 라 여유를 둔다.
+# 업로드 상한. 측정 CSV 실측이 130~165MB 라 여유를 둔다. gzip 으로 오면 전송 크기와
+# 풀린 크기 둘 다 이 상한을 넘지 못한다.
 MAX_UPLOAD_BYTES = 600 * 1024 * 1024
+# 상태 조회가 돌려주는 run.log 꼬리 길이. 제출 PC 는 log_bytes·log_from 으로 이 창에서
+# 새로 늘어난 부분만 골라 보여준다 (remote_gui.LogFollower).
+LOG_TAIL_BYTES = 8000
+
+
+class _TooLarge(Exception):
+    """압축을 푼 본문이 상한을 넘었다."""
 
 _queue = Queue()
 _lock = threading.Lock()
@@ -98,10 +109,15 @@ def _write_status(job_id, **updates):
     return st
 
 
-def _next_job_id():
-    os.makedirs(JOBS_DIR, exist_ok=True)
-    existing = [int(d) for d in os.listdir(JOBS_DIR) if d.isdigit()]
-    return (max(existing) + 1) if existing else 1
+def _create_job():
+    """새 작업 번호를 정하고 폴더까지 만든다. 번호 결정과 폴더 생성을 한 잠금 안에서 해야
+    동시에 들어온 두 제출이 같은 번호를 받지 않는다."""
+    with _lock:
+        os.makedirs(JOBS_DIR, exist_ok=True)
+        existing = [int(d) for d in os.listdir(JOBS_DIR) if d.isdigit()]
+        job_id = (max(existing) + 1) if existing else 1
+        os.makedirs(_job_dir(job_id))
+    return job_id
 
 
 def _build_argv(job_id, params):
@@ -132,62 +148,74 @@ def _build_argv(job_id, params):
 
 
 def _worker():
-    """작업을 순서대로 하나씩 처리한다."""
+    """작업을 순서대로 하나씩 처리한다.
+
+    어떤 예외에도 이 스레드는 죽지 않는다 — 죽으면 서버는 접수만 하고 아무것도 돌리지 않는
+    채로 멀쩡해 보인다. 상태 기록(디스크 쓰기)이 실패하는 경우까지 여기서 받는다.
+    """
     global _current_job
     while True:
         job_id = _queue.get()
         _current_job = job_id
-        params = (_read_status(job_id) or {}).get('params', {})
-        log_path = os.path.join(_job_dir(job_id), 'run.log')
-        _write_status(job_id, status='running', started=time.time())
-        print('[작업 %d] 분석 시작 — %s' % (job_id, params.get('name', '?')))
-
-        # 파이프라인은 자기 data/ 폴더의 파일만 읽는다. 작업 파일을 복사해 두고
-        # 끝나면 지운다 (원본은 jobs/<id>/ 에 남는다).
-        data_csv = os.path.join(CLIENT_DIR, 'data', 'job_%d.csv' % job_id)
         try:
-            os.makedirs(os.path.dirname(data_csv), exist_ok=True)
-            src = os.path.join(_job_dir(job_id), 'upload.csv')
-            with open(src, 'rb') as fin, open(data_csv, 'wb') as fout:
-                while True:
-                    chunk = fin.read(1 << 20)
-                    if not chunk:
-                        break
-                    fout.write(chunk)
-
-            env = dict(os.environ, PYTHONUNBUFFERED='1')     # -u 와 같은 뜻, 하위 프로세스까지
-            with open(log_path, 'ab') as logf:
-                proc = subprocess.Popen(
-                    _build_argv(job_id, params),
-                    cwd=CLIENT_DIR, stdout=logf, stderr=subprocess.STDOUT, env=env)
-                rc = proc.wait()
-
-            if rc == 0:
-                exp_pk = None
-                with open(log_path, 'rb') as f:
-                    m = re.findall(rb'\[RESULT\] exp_pk=(\d+)', f.read())
-                    if m:
-                        exp_pk = int(m[-1])
-                _write_status(job_id, status='done', exp_pk=exp_pk,
-                              finished=time.time())
-                print('[작업 %d] 완료 exp_pk=%s' % (job_id, exp_pk))
-            else:
-                _write_status(job_id, status='failed',
-                              error='파이프라인 종료 코드 %d — run.log 확인' % rc,
-                              finished=time.time())
-                print('[작업 %d] 실패 rc=%d' % (job_id, rc))
+            _run_job(job_id)
         except Exception as e:
-            _write_status(job_id, status='failed', error=str(e),
-                          finished=time.time())
             print('[작업 %d] 예외: %s' % (job_id, e))
-        finally:
             try:
-                if os.path.exists(data_csv):
-                    os.remove(data_csv)
-            except OSError:
-                pass
+                _write_status(job_id, status='failed', error=str(e), finished=time.time())
+            except Exception as e2:
+                print('[작업 %d] 상태 기록 실패: %s' % (job_id, e2))
+        finally:
             _current_job = None
             _queue.task_done()
+
+
+def _run_job(job_id):
+    params = (_read_status(job_id) or {}).get('params', {})
+    log_path = os.path.join(_job_dir(job_id), 'run.log')
+    _write_status(job_id, status='running', started=time.time())
+    print('[작업 %d] 분석 시작 - %s' % (job_id, params.get('name', '?')))
+
+    # 파이프라인은 자기 data/ 폴더의 파일만 읽는다. 작업 파일을 복사해 두고
+    # 끝나면 지운다 (원본은 jobs/<id>/ 에 남는다).
+    data_csv = os.path.join(CLIENT_DIR, 'data', 'job_%d.csv' % job_id)
+    try:
+        os.makedirs(os.path.dirname(data_csv), exist_ok=True)
+        src = os.path.join(_job_dir(job_id), 'upload.csv')
+        with open(src, 'rb') as fin, open(data_csv, 'wb') as fout:
+            while True:
+                chunk = fin.read(1 << 20)
+                if not chunk:
+                    break
+                fout.write(chunk)
+
+        env = dict(os.environ, PYTHONUNBUFFERED='1')     # -u 와 같은 뜻, 하위 프로세스까지
+        with open(log_path, 'ab') as logf:
+            proc = subprocess.Popen(
+                _build_argv(job_id, params),
+                cwd=CLIENT_DIR, stdout=logf, stderr=subprocess.STDOUT, env=env)
+            rc = proc.wait()
+
+        if rc == 0:
+            exp_pk = None
+            with open(log_path, 'rb') as f:
+                m = re.findall(rb'\[RESULT\] exp_pk=(\d+)', f.read())
+                if m:
+                    exp_pk = int(m[-1])
+            _write_status(job_id, status='done', exp_pk=exp_pk,
+                          finished=time.time())
+            print('[작업 %d] 완료 exp_pk=%s' % (job_id, exp_pk))
+        else:
+            _write_status(job_id, status='failed',
+                          error='파이프라인 종료 코드 %d — run.log 확인' % rc,
+                          finished=time.time())
+            print('[작업 %d] 실패 rc=%d' % (job_id, rc))
+    finally:
+        try:
+            if os.path.exists(data_csv):
+                os.remove(data_csv)
+        except OSError:
+            pass
 
 
 def _recover_stale_jobs():
@@ -215,6 +243,21 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _reject(self, code, obj, remain=0):
+        """본문을 다 읽기 전에 거절한다. 남은 본문(remain 바이트)은 읽어 버린 뒤 응답한다 —
+        안 읽고 답하면 중계(Django)가 연결 리셋을 받아 이 안내 대신 '연결할 수 없습니다' 로
+        바꿔 버린다. 상한을 넘는 본문은 읽지 않고 응답 뒤 연결을 닫는다."""
+        if remain > MAX_UPLOAD_BYTES:
+            self.close_connection = True
+        else:
+            while remain > 0:
+                chunk = self.rfile.read(min(1 << 20, remain))
+                if not chunk:
+                    self.close_connection = True
+                    break
+                remain -= len(chunk)
+        return self._json(code, obj)
+
     def log_message(self, fmt, *args):        # 기본 stderr 로그를 짧게
         print('[http] %s %s' % (self.command, self.path.split('?')[0]))
 
@@ -222,6 +265,16 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path.rstrip('/') != '/jobs':
             return self._json(404, {'error': 'POST /jobs 만 지원합니다.'})
+
+        try:
+            length = int(self.headers.get('Content-Length') or 0)
+        except ValueError:
+            length = -1
+        if length <= 0:
+            return self._reject(400, {'error': '본문에 CSV 를 실어 보내 주세요.'})
+        if length > MAX_UPLOAD_BYTES:
+            return self._reject(413, {'error': '파일이 너무 큽니다 (%dMB).'
+                                               % (length >> 20)}, length)
 
         qs = {k: v[0] for k, v in parse_qs(parsed.query).items()}
         params = {}
@@ -231,24 +284,17 @@ class Handler(BaseHTTPRequestHandler):
                 params[key] = v
         missing = [k for k in SUBJECT_FIELDS if k not in params]
         if missing:
-            return self._json(400, {'error': '필수 항목 누락: %s' % ', '.join(missing)})
-
-        length = int(self.headers.get('Content-Length') or 0)
-        if length <= 0:
-            return self._json(400, {'error': '본문에 CSV 를 실어 보내 주세요.'})
-        if length > MAX_UPLOAD_BYTES:
-            return self._json(413, {'error': '파일이 너무 큽니다 (%dMB).'
-                                             % (length >> 20)})
+            return self._reject(400, {'error': '필수 항목 누락: %s' % ', '.join(missing)},
+                                length)
 
         # compressed=gzip: 제출 PC 가 CSV 를 gzip 으로 보낸다(150MB 급 CSV 가 4~6배 줄어
         # 교외 회선에서 업로드가 그만큼 빨라진다). 여기서 풀어 upload.csv 로 저장한다.
         compressed = (qs.get('compressed') or '').strip().lower()
         if compressed not in ('', 'gzip'):
-            return self._json(400, {'error': '지원하지 않는 압축: %s' % compressed})
+            return self._reject(400, {'error': '지원하지 않는 압축: %s' % compressed}, length)
         decomp = zlib.decompressobj(16 + zlib.MAX_WBITS) if compressed == 'gzip' else None
 
-        job_id = _next_job_id()
-        os.makedirs(_job_dir(job_id), exist_ok=True)
+        job_id = _create_job()
         dst = os.path.join(_job_dir(job_id), 'upload.csv')
         remain = length
         raw_size = 0
@@ -259,21 +305,40 @@ class Handler(BaseHTTPRequestHandler):
                     if not chunk:
                         break
                     remain -= len(chunk)
-                    if decomp is not None:
-                        chunk = decomp.decompress(chunk)
-                    raw_size += len(chunk)
-                    f.write(chunk)
+                    if decomp is None:
+                        raw_size += len(chunk)
+                        f.write(chunk)
+                        continue
+                    # 1MB 씩 끊어 푼다. 한꺼번에 풀면 압축률이 극단적인 본문(0 으로만 채운
+                    # 파일 등)이 메모리를 다 차지한다. 풀린 크기도 업로드 상한으로 막는다.
+                    while chunk:
+                        out = decomp.decompress(chunk, 1 << 20)
+                        raw_size += len(out)
+                        if raw_size > MAX_UPLOAD_BYTES:
+                            raise _TooLarge()
+                        f.write(out)
+                        chunk = decomp.unconsumed_tail
                 if decomp is not None:
-                    tail = decomp.flush()
-                    raw_size += len(tail)
-                    f.write(tail)
+                    out = decomp.flush()
+                    raw_size += len(out)
+                    if raw_size > MAX_UPLOAD_BYTES:
+                        raise _TooLarge()
+                    f.write(out)
                     if remain == 0 and not decomp.eof:
                         raise zlib.error('gzip 스트림이 끝나지 않았습니다')
+                    if decomp.unused_data:
+                        raise zlib.error('gzip 스트림 뒤에 데이터가 %d바이트 더 있습니다'
+                                         % len(decomp.unused_data))
+        except _TooLarge:
+            shutil.rmtree(_job_dir(job_id), ignore_errors=True)
+            return self._reject(413, {'error': '압축을 푼 파일이 너무 큽니다 (%dMB 초과).'
+                                               % (MAX_UPLOAD_BYTES >> 20)}, remain)
         except zlib.error as e:
             shutil.rmtree(_job_dir(job_id), ignore_errors=True)   # status.json 없는 빈 작업을 남기지 않는다
-            return self._json(400, {'error': 'gzip 해제 실패: %s' % e})
+            return self._reject(400, {'error': 'gzip 해제 실패: %s' % e}, remain)
         if remain > 0:
             shutil.rmtree(_job_dir(job_id), ignore_errors=True)
+            self.close_connection = True
             return self._json(400, {'error': '본문이 %d바이트 부족하게 끊겼습니다.'
                                              % remain})
 
@@ -281,7 +346,7 @@ class Handler(BaseHTTPRequestHandler):
                       submitted=time.time(), size=raw_size, size_wire=length,
                       compressed=compressed or None)
         _queue.put(job_id)
-        print('[접수] 작업 %d — %s (%.1fMB%s)'
+        print('[접수] 작업 %d - %s (%.1fMB%s)'
               % (job_id, params.get('name'), raw_size / 1e6,
                  ', 전송 %.1fMB gzip' % (length / 1e6) if decomp else ''))
         return self._json(200, {'job': job_id, 'status': 'queued',
@@ -302,16 +367,19 @@ class Handler(BaseHTTPRequestHandler):
         if st is None:
             return self._json(404, {'error': '작업 %d 없음' % job_id})
 
-        tail = ''
+        tail, log_bytes, log_from = '', 0, 0
         log_path = os.path.join(_job_dir(job_id), 'run.log')
-        if os.path.exists(log_path):
-            try:
-                with open(log_path, 'rb') as f:
-                    f.seek(0, os.SEEK_END)
-                    f.seek(max(0, f.tell() - 8000))
-                    tail = f.read().decode('utf-8', 'replace')
-            except OSError:
-                pass
+        try:
+            with open(log_path, 'rb') as f:
+                f.seek(0, os.SEEK_END)
+                log_bytes = f.tell()
+                log_from = max(0, log_bytes - LOG_TAIL_BYTES)
+                f.seek(log_from)
+                # 크기와 꼬리를 같은 열기에서, 정확히 그 길이만큼 읽는다 — 제출 PC 가
+                # log_bytes 로 '새로 늘어난 바이트' 를 세어 꼬리에서 잘라 내기 때문이다.
+                tail = f.read(log_bytes - log_from).decode('utf-8', 'replace')
+        except OSError:            # 아직 run.log 가 없다(대기열)
+            pass
         # 시각·순번은 제출 PC 가 '어디서 시간이 가는지'(업로드/대기/분석)를 보여 주는 데 쓴다.
         return self._json(200, {
             'job': job_id,
@@ -319,7 +387,8 @@ class Handler(BaseHTTPRequestHandler):
             'exp_pk': st.get('exp_pk'),
             'error': st.get('error'),
             'log_tail': tail,
-            'log_bytes': os.path.getsize(log_path) if os.path.exists(log_path) else 0,
+            'log_bytes': log_bytes,
+            'log_from': log_from,
             'submitted': st.get('submitted'),
             'started': st.get('started'),
             'finished': st.get('finished'),
@@ -336,7 +405,7 @@ def main():
     _recover_stale_jobs()
     threading.Thread(target=_worker, daemon=True).start()
 
-    print('분석 서버 시작 — 포트 %d' % args.port)
+    print('분석 서버 시작 - 포트 %d' % args.port)
     print('  파이프라인 : %s' % CLIENT_DIR)
     print('  python     : %s' % CLIENT_PYTHON)
     print('  작업 폴더  : %s' % JOBS_DIR)

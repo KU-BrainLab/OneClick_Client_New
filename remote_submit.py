@@ -83,6 +83,23 @@ def build_params(args):
     return params
 
 
+def _gzip_to_temp(csv_path):
+    """CSV 를 gzip 임시 파일로. 실패하면 쓰다 만 파일을 지우고 예외를 올린다. 호출자가 지운다."""
+    tmp = tempfile.NamedTemporaryFile(prefix='oneclick_', suffix='.csv.gz', delete=False)
+    try:
+        with open(csv_path, 'rb') as fin, gzip.GzipFile(fileobj=tmp, mode='wb', compresslevel=3) as gz:
+            shutil.copyfileobj(fin, gz, 1 << 20)
+    except BaseException:
+        tmp.close()
+        try:
+            os.remove(tmp.name)
+        except OSError:
+            pass
+        raise
+    tmp.close()
+    return tmp.name
+
+
 def submit(server, csv_path, params, use_gzip=True):
     base = api_base(server)
     size_mb = os.path.getsize(csv_path) / 1e6
@@ -93,7 +110,8 @@ def submit(server, csv_path, params, use_gzip=True):
         # GET /jobs/0 에 기능 목록({'gzip': true})을 주므로 그때만 압축한다.
         try:
             probe = requests.get('%s/jobs/0' % base, timeout=15, verify=tls_verify(base))
-            use_gzip = probe.status_code == 200 and probe.json().get('gzip') is True
+            body = probe.json()
+            use_gzip = probe.status_code == 200 and isinstance(body, dict) and body.get('gzip') is True
         except (requests.RequestException, ValueError):
             use_gzip = False
         if not use_gzip:
@@ -101,12 +119,13 @@ def submit(server, csv_path, params, use_gzip=True):
     if use_gzip:
         # 측정 CSV(130~165MB)는 gzip 으로 4~6배 줄어 업로드가 그만큼 빨라진다. 서버가 풀어 저장한다.
         t0 = time.time()
-        tmp = tempfile.NamedTemporaryFile(prefix='oneclick_', suffix='.csv.gz', delete=False)
-        with open(csv_path, 'rb') as fin, gzip.GzipFile(fileobj=tmp, mode='wb', compresslevel=3) as gz:
-            shutil.copyfileobj(fin, gz, 1 << 20)
-        tmp.close()
-        send_path, send_params = tmp.name, dict(params, compressed='gzip')
-        print('압축: %.1fMB -> %.1fMB (%.0f초)' % (size_mb, os.path.getsize(tmp.name) / 1e6, time.time() - t0))
+        try:
+            tmp = _gzip_to_temp(csv_path)
+        except (OSError, ValueError) as e:
+            print('압축 실패(%s) - 원본으로 보냅니다.' % e)
+        else:
+            send_path, send_params = tmp, dict(params, compressed='gzip')
+            print('압축: %.1fMB -> %.1fMB (%.0f초)' % (size_mb, os.path.getsize(tmp) / 1e6, time.time() - t0))
     try:
         with open(send_path, 'rb') as f:
             # 파일을 본문으로 스트리밍한다 — 서버가 표준 라이브러리만으로 받는다.
@@ -115,7 +134,7 @@ def submit(server, csv_path, params, use_gzip=True):
     finally:
         if tmp is not None:
             try:
-                os.remove(tmp.name)
+                os.remove(tmp)
             except OSError:
                 pass
     r.raise_for_status()
@@ -126,11 +145,41 @@ def submit(server, csv_path, params, use_gzip=True):
     return body['job']
 
 
+class _LogFollower:
+    """상태 응답에서 아직 안 찍은 로그만 골라낸다. remote_gui.LogFollower 와 같은 규칙이다
+    (remote_gui 는 실행 파일로 묶이느라 저장소 모듈을 import 하지 않아 둘로 둔다).
+    서버는 run.log 꼬리 8000바이트만 주므로 글자 수 비교로는 로그가 창보다 커지는 순간 멈춘다.
+    파일 크기(log_bytes)로 새로 늘어난 바이트를 세어 꼬리 끝에서 잘라 낸다."""
+
+    def __init__(self):
+        self.seen = 0
+
+    def take(self, st):
+        tail = st.get('log_tail') or ''
+        total = st.get('log_bytes')
+        if total is None:                          # 옛 서버
+            if len(tail) > self.seen:
+                new, self.seen = tail[self.seen:], len(tail)
+                return new, 0
+            if len(tail) < self.seen:
+                self.seen = len(tail)
+            return '', 0
+        if total <= self.seen:
+            return '', 0
+        new = total - self.seen
+        self.seen = total
+        window = total - (st.get('log_from') or 0)
+        if new >= window:
+            return tail, new - window
+        return tail.encode('utf-8')[-new:].decode('utf-8', 'replace'), 0
+
+
 def poll(server, job_id):
     base = api_base(server)
     deadline = time.time() + POLL_LIMIT_SEC
-    seen = 0                      # 이미 출력한 로그 길이
+    follow = _LogFollower()
     last_status = None
+    at_line_start = True
     while time.time() < deadline:
         try:
             r = requests.get('%s/jobs/%s' % (base, job_id), timeout=30,
@@ -143,24 +192,31 @@ def poll(server, job_id):
 
         # Django 중계를 거칠 때는 분석 서버 장애가 예외가 아니라
         # {'error': ...} JSON(502 등)으로 온다. 일시 장애로 보고 재시도한다 —
-        # 진행 상황(seen)을 지우면 복구 후 로그가 통째로 다시 찍힌다.
-        if st.get('status') is None:
+        # 본 로그 위치(follow)를 지우면 복구 후 로그가 통째로 다시 찍힌다.
+        if not isinstance(st, dict) or st.get('status') is None:
             print('[폴링] 중계 오류(%s) — 계속 시도합니다'
-                  % (st.get('error') or 'HTTP %s' % r.status_code))
+                  % ((st.get('error') if isinstance(st, dict) else None) or 'HTTP %s' % r.status_code))
             time.sleep(POLL_INTERVAL_SEC)
             continue
 
-        tail = st.get('log_tail') or ''
-        if len(tail) > seen:
-            new = tail[seen:] if seen else tail
-            sys.stdout.write(new if new.endswith('\n') else new + '\n')
-            seen = len(tail)
-        elif len(tail) < seen:    # 서버 쪽 tail 윈도가 밀렸다
-            seen = len(tail)
+        new, skipped = follow.take(st)
+        if skipped:
+            if not at_line_start:
+                sys.stdout.write('\n')
+            print('(... 로그 %d바이트 건너뜀 - 전체는 서버의 run.log)' % skipped)
+            at_line_start = True
+        if new:
+            sys.stdout.write(new)          # 바이트 단위 조각이라 줄 중간에서 끊길 수 있다 — 그대로 잇는다
+            sys.stdout.flush()
+            at_line_start = new.endswith('\n')
 
         if st.get('status') != last_status:
             last_status = st.get('status')
+            if not at_line_start:
+                sys.stdout.write('\n')
+                at_line_start = True
             print('── 상태: %s ──' % last_status)
+            deadline = time.time() + POLL_LIMIT_SEC      # 대기열 → 분석 으로 넘어가면 제한 시간을 다시 센다
 
         if last_status == 'done':
             print('분석 완료 — 실험 번호 %s. 웹에서 확인할 수 있습니다.'
