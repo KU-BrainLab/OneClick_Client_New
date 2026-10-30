@@ -19,8 +19,11 @@
 어느 쪽이든 이 스크립트 입장에선 '<SERVER>/jobs' 로 붙는 것이라 동작은 같다.
 """
 import argparse
+import gzip
 import os
+import shutil
 import sys
+import tempfile
 import time
 
 import requests
@@ -80,14 +83,41 @@ def build_params(args):
     return params
 
 
-def submit(server, csv_path, params):
+def submit(server, csv_path, params, use_gzip=True):
     base = api_base(server)
     size_mb = os.path.getsize(csv_path) / 1e6
     print('제출: %s (%.1fMB) -> %s' % (os.path.basename(csv_path), size_mb, server))
-    with open(csv_path, 'rb') as f:
-        # 파일을 본문으로 스트리밍한다 — 서버가 표준 라이브러리만으로 받는다.
-        r = requests.post('%s/jobs' % base, params=params, data=f,
-                          timeout=600, verify=tls_verify(base))
+    send_path, send_params, tmp = csv_path, params, None
+    if use_gzip:
+        # 옛 분석 서버(compressed 를 모름)는 gzip 바이트를 그대로 저장해 분석이 깨진다. 새 서버만
+        # GET /jobs/0 에 기능 목록({'gzip': true})을 주므로 그때만 압축한다.
+        try:
+            probe = requests.get('%s/jobs/0' % base, timeout=15, verify=tls_verify(base))
+            use_gzip = probe.status_code == 200 and probe.json().get('gzip') is True
+        except (requests.RequestException, ValueError):
+            use_gzip = False
+        if not use_gzip:
+            print('서버가 압축 업로드를 지원하지 않아 원본으로 보냅니다.')
+    if use_gzip:
+        # 측정 CSV(130~165MB)는 gzip 으로 4~6배 줄어 업로드가 그만큼 빨라진다. 서버가 풀어 저장한다.
+        t0 = time.time()
+        tmp = tempfile.NamedTemporaryFile(prefix='oneclick_', suffix='.csv.gz', delete=False)
+        with open(csv_path, 'rb') as fin, gzip.GzipFile(fileobj=tmp, mode='wb', compresslevel=3) as gz:
+            shutil.copyfileobj(fin, gz, 1 << 20)
+        tmp.close()
+        send_path, send_params = tmp.name, dict(params, compressed='gzip')
+        print('압축: %.1fMB -> %.1fMB (%.0f초)' % (size_mb, os.path.getsize(tmp.name) / 1e6, time.time() - t0))
+    try:
+        with open(send_path, 'rb') as f:
+            # 파일을 본문으로 스트리밍한다 — 서버가 표준 라이브러리만으로 받는다.
+            r = requests.post('%s/jobs' % base, params=send_params, data=f,
+                              timeout=600, verify=tls_verify(base))
+    finally:
+        if tmp is not None:
+            try:
+                os.remove(tmp.name)
+            except OSError:
+                pass
     r.raise_for_status()
     body = r.json()
     if 'job' not in body:

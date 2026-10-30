@@ -32,7 +32,9 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
+import zlib
 import sys
 import threading
 import time
@@ -57,6 +59,15 @@ MAX_UPLOAD_BYTES = 600 * 1024 * 1024
 
 _queue = Queue()
 _lock = threading.Lock()
+_current_job = None            # 지금 돌고 있는 작업 번호 (대기 순번 계산용)
+
+
+def _queue_ahead(job_id):
+    """job_id 보다 먼저 접수돼 아직 안 끝난 작업 수 (돌고 있는 것 포함)."""
+    with _queue.mutex:
+        pending = [j for j in _queue.queue if j < job_id]
+    running = _current_job
+    return len(pending) + (1 if running is not None and running < job_id else 0)
 
 
 def _job_dir(job_id):
@@ -95,8 +106,10 @@ def _next_job_id():
 
 def _build_argv(job_id, params):
     """작업 파라미터 -> main.py 인자."""
+    # -u: 파이프라인 stdout 이 파일로 가면 파이썬이 8KB 단위로 버퍼링해 run.log 가 한참 뒤에
+    # 몰아서 채워진다. 끄지 않으면 제출 PC 에서 로그가 '실시간' 으로 안 보인다.
     argv = [
-        CLIENT_PYTHON, os.path.join(CLIENT_DIR, 'main.py'),
+        CLIENT_PYTHON, '-u', os.path.join(CLIENT_DIR, 'main.py'),
         '--NAME', params['name'],
         '--AGE', params['age'],
         '--BIRTH', params['birth'],
@@ -120,8 +133,10 @@ def _build_argv(job_id, params):
 
 def _worker():
     """작업을 순서대로 하나씩 처리한다."""
+    global _current_job
     while True:
         job_id = _queue.get()
+        _current_job = job_id
         params = (_read_status(job_id) or {}).get('params', {})
         log_path = os.path.join(_job_dir(job_id), 'run.log')
         _write_status(job_id, status='running', started=time.time())
@@ -140,10 +155,11 @@ def _worker():
                         break
                     fout.write(chunk)
 
+            env = dict(os.environ, PYTHONUNBUFFERED='1')     # -u 와 같은 뜻, 하위 프로세스까지
             with open(log_path, 'ab') as logf:
                 proc = subprocess.Popen(
                     _build_argv(job_id, params),
-                    cwd=CLIENT_DIR, stdout=logf, stderr=subprocess.STDOUT)
+                    cwd=CLIENT_DIR, stdout=logf, stderr=subprocess.STDOUT, env=env)
                 rc = proc.wait()
 
             if rc == 0:
@@ -170,6 +186,7 @@ def _worker():
                     os.remove(data_csv)
             except OSError:
                 pass
+            _current_job = None
             _queue.task_done()
 
 
@@ -223,33 +240,64 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(413, {'error': '파일이 너무 큽니다 (%dMB).'
                                              % (length >> 20)})
 
+        # compressed=gzip: 제출 PC 가 CSV 를 gzip 으로 보낸다(150MB 급 CSV 가 4~6배 줄어
+        # 교외 회선에서 업로드가 그만큼 빨라진다). 여기서 풀어 upload.csv 로 저장한다.
+        compressed = (qs.get('compressed') or '').strip().lower()
+        if compressed not in ('', 'gzip'):
+            return self._json(400, {'error': '지원하지 않는 압축: %s' % compressed})
+        decomp = zlib.decompressobj(16 + zlib.MAX_WBITS) if compressed == 'gzip' else None
+
         job_id = _next_job_id()
         os.makedirs(_job_dir(job_id), exist_ok=True)
         dst = os.path.join(_job_dir(job_id), 'upload.csv')
         remain = length
-        with open(dst, 'wb') as f:
-            while remain > 0:
-                chunk = self.rfile.read(min(1 << 20, remain))
-                if not chunk:
-                    break
-                f.write(chunk)
-                remain -= len(chunk)
+        raw_size = 0
+        try:
+            with open(dst, 'wb') as f:
+                while remain > 0:
+                    chunk = self.rfile.read(min(1 << 20, remain))
+                    if not chunk:
+                        break
+                    remain -= len(chunk)
+                    if decomp is not None:
+                        chunk = decomp.decompress(chunk)
+                    raw_size += len(chunk)
+                    f.write(chunk)
+                if decomp is not None:
+                    tail = decomp.flush()
+                    raw_size += len(tail)
+                    f.write(tail)
+                    if remain == 0 and not decomp.eof:
+                        raise zlib.error('gzip 스트림이 끝나지 않았습니다')
+        except zlib.error as e:
+            shutil.rmtree(_job_dir(job_id), ignore_errors=True)   # status.json 없는 빈 작업을 남기지 않는다
+            return self._json(400, {'error': 'gzip 해제 실패: %s' % e})
         if remain > 0:
+            shutil.rmtree(_job_dir(job_id), ignore_errors=True)
             return self._json(400, {'error': '본문이 %d바이트 부족하게 끊겼습니다.'
                                              % remain})
 
         _write_status(job_id, status='queued', params=params,
-                      submitted=time.time(), size=length)
+                      submitted=time.time(), size=raw_size, size_wire=length,
+                      compressed=compressed or None)
         _queue.put(job_id)
-        print('[접수] 작업 %d — %s (%.1fMB)'
-              % (job_id, params.get('name'), length / 1e6))
-        return self._json(200, {'job': job_id, 'status': 'queued'})
+        print('[접수] 작업 %d — %s (%.1fMB%s)'
+              % (job_id, params.get('name'), raw_size / 1e6,
+                 ', 전송 %.1fMB gzip' % (length / 1e6) if decomp else ''))
+        return self._json(200, {'job': job_id, 'status': 'queued',
+                                'queue_ahead': _queue_ahead(job_id)})
 
     def do_GET(self):
         m = re.fullmatch(r'/jobs/(\d+)/?', urlparse(self.path).path)
         if not m:
             return self._json(404, {'error': 'GET /jobs/<id> 만 지원합니다.'})
         job_id = int(m.group(1))
+        if job_id == 0:
+            # 기능 조회. 제출 PC 가 압축 업로드를 써도 되는지 여기로 확인한다(옛 서버는 404).
+            # 작업 번호는 1 부터라 0 은 비어 있고, 중계(Django)도 <int> 경로라 그대로 통과한다.
+            return self._json(200, {'job': 0, 'server': 'oneclick-analysis', 'gzip': True,
+                                    'queue_length': _queue_ahead(1 << 62),
+                                    'server_time': time.time()})
         st = _read_status(job_id)
         if st is None:
             return self._json(404, {'error': '작업 %d 없음' % job_id})
@@ -264,12 +312,19 @@ class Handler(BaseHTTPRequestHandler):
                     tail = f.read().decode('utf-8', 'replace')
             except OSError:
                 pass
+        # 시각·순번은 제출 PC 가 '어디서 시간이 가는지'(업로드/대기/분석)를 보여 주는 데 쓴다.
         return self._json(200, {
             'job': job_id,
             'status': st.get('status'),
             'exp_pk': st.get('exp_pk'),
             'error': st.get('error'),
             'log_tail': tail,
+            'log_bytes': os.path.getsize(log_path) if os.path.exists(log_path) else 0,
+            'submitted': st.get('submitted'),
+            'started': st.get('started'),
+            'finished': st.get('finished'),
+            'queue_ahead': _queue_ahead(job_id) if st.get('status') == 'queued' else 0,
+            'server_time': time.time(),
         })
 
 

@@ -12,11 +12,13 @@ CSV 와 피험자 정보를 분석 서버(또는 Django 중계)로 보내고, �
 ONECLICK_ANALYSIS_SERVER 로 정한다.
 """
 import ipaddress
+import gzip
 import json
 import os
 import queue
 import re
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -50,7 +52,9 @@ SERVER = 'https://ntxoneclick.co.kr/api/v1/exp/analysis'
 DEFAULT_SLEEP_MODEL = 'usleep'
 DEFAULT_CROP = True
 
-POLL_INTERVAL_SEC = 15
+POLL_INTERVAL_SEC = 3          # 상태 조회 간격. 조회는 작은 JSON 이라 가볍다
+STATUS_TICK_SEC = 1            # 조회 사이에도 경과 시간은 매초 갱신한다
+UPLOAD_GZIP_LEVEL = 3          # 측정 CSV(130~165MB)가 4~6배 줄어 업로드가 그만큼 빨라진다
 POLL_LIMIT_SEC = 3600
 
 # 언어 선택은 사용자별 설정으로 남긴다. 저장소 안에 두면 git 상태를
@@ -108,6 +112,11 @@ STRINGS = {
         'st_upload': '업로드 중... {sent:.1f} / {total:.1f}MB',
         'st_job': '{state}',
         'st_retry': '연결 재시도 중',
+        'st_compress': '압축 중... {pct}%',
+        'log_compressed': '압축: {raw:.1f}MB → {gz:.1f}MB ({sec:.0f}초)\n',
+        'st_queued_ahead': '대기열 — 앞에 {n}건 · 경과 {elapsed}',
+        'st_progress': '{state} · 경과 {elapsed} · 마지막 로그 {since}초 전',
+        'log_timing': '소요 시간 — 압축 {c:.0f}초 · 업로드 {u:.0f}초 · 대기 {w:.0f}초 · 분석 {a:.0f}초\n',
         'state_queued': '대기열',
         'state_running': '분석 중',
         'state_done': '완료',
@@ -176,6 +185,11 @@ STRINGS = {
         'st_upload': 'Uploading... {sent:.1f} / {total:.1f}MB',
         'st_job': '{state}',
         'st_retry': 'Reconnecting',
+        'st_compress': 'Compressing... {pct}%',
+        'log_compressed': 'Compressed: {raw:.1f}MB -> {gz:.1f}MB ({sec:.0f}s)\n',
+        'st_queued_ahead': 'Queued - {n} ahead · elapsed {elapsed}',
+        'st_progress': '{state} · elapsed {elapsed} · last log {since}s ago',
+        'log_timing': 'Time - compress {c:.0f}s · upload {u:.0f}s · wait {w:.0f}s · analysis {a:.0f}s\n',
         'state_queued': 'queued',
         'state_running': 'analyzing',
         'state_done': 'done',
@@ -248,6 +262,11 @@ STRINGS = {
         'st_upload': 'アップロード中... {sent:.1f} / {total:.1f}MB',
         'st_job': '{state}',
         'st_retry': '再接続中',
+        'st_compress': '圧縮中... {pct}%',
+        'log_compressed': '圧縮: {raw:.1f}MB → {gz:.1f}MB ({sec:.0f}秒)\n',
+        'st_queued_ahead': '待機列 — 前に{n}件 · 経過 {elapsed}',
+        'st_progress': '{state} · 経過 {elapsed} · 最終ログ {since}秒前',
+        'log_timing': '所要時間 — 圧縮 {c:.0f}秒 · アップロード {u:.0f}秒 · 待機 {w:.0f}秒 · 解析 {a:.0f}秒\n',
         'state_queued': '待機列',
         'state_running': '解析中',
         'state_done': '完了',
@@ -415,29 +434,93 @@ class _ProgressFile:
         self._f.close()
 
 
+def _gzip_to_temp(path, notify):
+    """CSV 를 gzip 임시 파일로. 1MB 마다 notify(done, total). 호출자가 지운다."""
+    total = os.path.getsize(path)
+    done = 0
+    tmp = tempfile.NamedTemporaryFile(prefix='oneclick_', suffix='.csv.gz', delete=False)
+    try:
+        with open(path, 'rb') as fin, gzip.GzipFile(fileobj=tmp, mode='wb',
+                                                    compresslevel=UPLOAD_GZIP_LEVEL) as gz:
+            while True:
+                chunk = fin.read(1 << 20)
+                if not chunk:
+                    break
+                gz.write(chunk)
+                done += len(chunk)
+                notify(done, total)
+    finally:
+        tmp.close()
+    return tmp.name
+
+
+def _server_supports_gzip(base, verify):
+    """분석 서버가 compressed=gzip 을 아는 버전인지. 옛 서버는 gzip 바이트를 CSV 로 저장해 분석이 깨지므로
+    확실할 때만 압축한다. 새 서버는 GET /jobs/0 에 기능 목록({'gzip': true, ...})을 주고, 옛 서버는 404."""
+    try:
+        r = requests.get('%s/jobs/0' % base, timeout=15, verify=verify)
+        return r.status_code == 200 and r.json().get('gzip') is True
+    except (requests.RequestException, ValueError):
+        return False
+
+
+def _mmss(sec):
+    sec = max(0, int(sec))
+    return '%02d:%02d' % (sec // 60, sec % 60)
+
+
+def _progress_text(state, queue_ahead, since_accept, since_log):
+    """폴링 사이에도 매초 바뀌는 상태 문구. 로그가 안 늘어도 '살아 있음' 이 보이게."""
+    if state == 'queued' and queue_ahead:
+        return t('st_queued_ahead', n=queue_ahead, elapsed=_mmss(since_accept))
+    label = t('state_' + state) if 'state_' + state in STRINGS[_lang] else state
+    return t('st_progress', state=label, elapsed=_mmss(since_accept), since=int(since_log))
+
+
 def run_submission(server, file_path, params, q):
-    """제출 → 폴링. 진행 상황을 q 에 넣는다. 스레드에서 돌린다.
+    """압축 → 제출 → 폴링. 진행 상황을 q 에 넣는다. 스레드에서 돌린다.
 
     q 메시지: ('status', 문구) / ('log', 텍스트) / ('finish', 성공여부, 문구)
     서버 주소는 화면에 내보내지 않는다 — 담당자가 알 필요가 없고, 오류
     문구로 내부망 주소가 새는 것도 막는다.
     """
+    gz_path = None
     try:
         size_mb = os.path.getsize(file_path) / 1e6
-
-        def notify(sent, total):
-            q.put(('status', t('st_upload', sent=sent / 1e6, total=total / 1e6)))
-
         q.put(('log', t('log_submit', file=os.path.basename(file_path),
                         size=size_mb)))
         base = _api_base(server)
         verify = _tls_verify(base)
-        body = _ProgressFile(file_path, notify)
+
+        # 1) 압축. 실패하면 원본 그대로 보낸다(서버는 둘 다 받는다).
+        t0 = time.time()
+        upload_path, upload_params = file_path, dict(params)
         try:
-            r = requests.post('%s/jobs' % base, params=params,
+            if not _server_supports_gzip(base, verify):
+                raise ValueError('server without gzip support')
+
+            def notify_gz(done, total):
+                q.put(('status', t('st_compress', pct=int(done * 100 / max(total, 1)))))
+            gz_path = _gzip_to_temp(file_path, notify_gz)
+            upload_path, upload_params = gz_path, dict(params, compressed='gzip')
+            q.put(('log', t('log_compressed', raw=size_mb, gz=os.path.getsize(gz_path) / 1e6,
+                            sec=time.time() - t0)))
+        except (OSError, ValueError):
+            gz_path = None
+        compress_sec = time.time() - t0
+
+        # 2) 업로드 (응답이 오면 중계가 분석 서버까지 넘긴 것)
+        def notify(sent, total):
+            q.put(('status', t('st_upload', sent=sent / 1e6, total=total / 1e6)))
+
+        t1 = time.time()
+        body = _ProgressFile(upload_path, notify)
+        try:
+            r = requests.post('%s/jobs' % base, params=upload_params,
                               data=body, timeout=600, verify=verify)
         finally:
             body.close()
+        upload_sec = time.time() - t1
         try:
             resp = r.json()
         except ValueError:
@@ -449,49 +532,63 @@ def run_submission(server, file_path, params, q):
                                       or 'HTTP %d' % r.status_code)))
             return
         job_id = resp['job']
+        t_accept = time.time()
         q.put(('log', t('log_accepted', job=job_id)))
-        q.put(('status', t('st_job', job=job_id, state=t('state_queued'))))
 
+        # 3) 폴링. 서버 조회는 POLL_INTERVAL_SEC 마다, 상태 문구는 매초.
         deadline = time.time() + POLL_LIMIT_SEC
         seen = 0
-        last_status = None
+        last_status = 'queued'
+        queue_ahead = resp.get('queue_ahead') or 0
+        last_log_at = t_accept
+        next_poll = time.time()
+        st = {}
+        q.put(('status', _progress_text(last_status, queue_ahead, 0, 0)))
         while time.time() < deadline:
+            now = time.time()
+            if now < next_poll:
+                time.sleep(min(STATUS_TICK_SEC, next_poll - now))
+                q.put(('status', _progress_text(last_status, queue_ahead,
+                                                time.time() - t_accept, time.time() - last_log_at)))
+                continue
+            next_poll = now + POLL_INTERVAL_SEC
             try:
                 st = requests.get('%s/jobs/%s' % (base, job_id),
                                   timeout=30, verify=verify).json()
             except (requests.RequestException, ValueError):
                 q.put(('status', t('st_retry', job=job_id)))
-                time.sleep(POLL_INTERVAL_SEC)
                 continue
             # 중계를 거치면 서버 장애가 예외가 아니라 {'error':...} 로 온다.
             # seen 을 건드리지 않고 넘어가야 복구 후 로그가 중복되지 않는다.
             if st.get('status') is None:
                 q.put(('status', t('st_retry', job=job_id)))
-                time.sleep(POLL_INTERVAL_SEC)
                 continue
 
             tail = st.get('log_tail') or ''
             if len(tail) > seen:
                 q.put(('log', tail[seen:]))
                 seen = len(tail)
+                last_log_at = time.time()
             elif len(tail) < seen:      # 서버 쪽 tail 윈도가 밀렸다
                 seen = len(tail)
+                last_log_at = time.time()
+            queue_ahead = st.get('queue_ahead') or 0
+            last_status = st['status']
+            q.put(('status', _progress_text(last_status, queue_ahead,
+                                            time.time() - t_accept, time.time() - last_log_at)))
 
-            if st['status'] != last_status:
-                last_status = st['status']
-                q.put(('status', t('st_job', job=job_id,
-                                   state=t('state_' + last_status)
-                                   if 'state_' + last_status in STRINGS[_lang]
-                                   else last_status)))
-
-            if last_status == 'done':
-                q.put(('finish', True, t('fin_done', pk=st.get('exp_pk'))))
+            if last_status in ('done', 'failed'):
+                # 어디서 시간이 갔는지: 서버 시각이 있으면 그걸로, 없으면 제출 PC 기준으로.
+                sub, sta, fin = st.get('submitted'), st.get('started'), st.get('finished')
+                wait_sec = (sta - sub) if (sta and sub) else 0
+                run_sec = (fin - sta) if (fin and sta) else (time.time() - t_accept - wait_sec)
+                q.put(('log', t('log_timing', c=compress_sec, u=upload_sec, w=wait_sec, a=run_sec)))
+                if last_status == 'done':
+                    q.put(('finish', True, t('fin_done', pk=st.get('exp_pk'))))
+                else:
+                    q.put(('finish', False,
+                           t('fin_failed', error=server_message(st.get('error')))))
                 return
-            if last_status == 'failed':
-                q.put(('finish', False,
-                       t('fin_failed', error=server_message(st.get('error')))))
-                return
-            time.sleep(POLL_INTERVAL_SEC)
 
         q.put(('finish', False, t('fin_timeout', min=POLL_LIMIT_SEC // 60,
                                   job=job_id)))
@@ -502,6 +599,12 @@ def run_submission(server, file_path, params, q):
         q.put(('finish', False, t('fin_noconn', error=type(e).__name__)))
     except Exception as e:      # 워커 스레드가 조용히 죽으면 버튼이 안 풀린다
         q.put(('finish', False, t('fin_error', error=e)))
+    finally:
+        if gz_path:
+            try:
+                os.remove(gz_path)
+            except OSError:
+                pass
 
 
 # ── GUI ──────────────────────────────────────────────────────────────
