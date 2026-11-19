@@ -18,7 +18,7 @@ def get_brain_spectrogram(raw: mne.io.RawArray, uuid, trigger):
     win_n  = int(SPEC_WINDOW_SEC * sfreq)
     step_n = int(SPEC_STEP_SEC   * sfreq)
 
-    from utils.phase_defs import phase_names as _phase_names
+    from utils.phase_defs import phase_names as _phase_names, PHASE_SHORT
     n_phases = len(trigger) - 1
     phase_names = _phase_names(n_phases)
     boundaries = {}
@@ -48,7 +48,17 @@ def get_brain_spectrogram(raw: mne.io.RawArray, uuid, trigger):
     # psds: (n_windows, n_ch, n_freqs) → dB
     psds_db = 10 * np.log10(psds + 1e-30)
 
-    stage_lines = {s_min: name for name, (s_min, _) in boundaries.items()}
+    # 구간 시작(분) -> (라벨, 라벨 높이). phase 가 7개 이상(7·8·9-phase)이면 정식
+    # 이름끼리 겹친다('stimulation1' 하나가 축 폭의 7~8%). 그때만 짧은 표기
+    # (Stim1/Rec1, 축 폭의 약 3%)로 바꾸고 높이를 한 줄 엇갈린다 — 자극은 윗줄,
+    # 회복은 아랫줄. 6개 이하는 기존 그림과 같아야 하므로 이름·높이를 그대로 둔다.
+    compact = n_phases >= 7
+    stage_lines = {}
+    for i, (name, (s_min, _)) in enumerate(boundaries.items()):
+        if compact:
+            stage_lines[s_min] = (PHASE_SHORT.get(name, name), 0.92 if i % 2 else 0.82)
+        else:
+            stage_lines[s_min] = (name, 0.92)
     t_min = t_centers / 60
 
     vmin = float(np.percentile(psds_db, 2))
@@ -61,10 +71,10 @@ def get_brain_spectrogram(raw: mne.io.RawArray, uuid, trigger):
         im = ax.imshow(ch_data, aspect='auto', origin='lower',
                        extent=[t_min[0], t_min[-1], freqs[0], freqs[-1]],
                        vmin=vmin, vmax=vmax, cmap='RdYlBu_r')
-        for t_stage, name in stage_lines.items():
+        for t_stage, (label, y_frac) in stage_lines.items():
             if t_min[0] <= t_stage <= t_min[-1]:
                 ax.axvline(t_stage, color='white', linewidth=2.5, linestyle='--')
-                ax.text(t_stage + 0.1, freqs[-1] * 0.92, name,
+                ax.text(t_stage + 0.1, freqs[-1] * y_frac, label,
                         color='white', fontsize=11, va='top', fontweight='bold')
         fig.colorbar(im, ax=ax, label='Power (dB)', orientation='horizontal', pad=0.05)
         ax.set_title(f'Spectrogram — {ch}', fontsize=13, fontweight='bold')

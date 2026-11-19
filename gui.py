@@ -94,7 +94,7 @@ def run_analysis(args_dict, log_queue):
         'psd': eeg_results['psd_result'],
         'sleep_staging': eeg_results['sleep_stage'],
         'frontal_limbic': eeg_results['frontal_limbic'],
-        # phase·diff 키는 모드(1/3/5/6-phase)에 따라 다르다. 어떤 phase 가
+        # phase·diff 키는 모드(1/3/5/6/9-phase)에 따라 다르다. 어떤 phase 가
         # 실제로 분석됐는지는 eeg_results['topography'] 의 키가 그대로 말해준다.
         **{name: eeg_content_bulk(eeg_results, name)
            for name in eeg_results['topography'].keys()},

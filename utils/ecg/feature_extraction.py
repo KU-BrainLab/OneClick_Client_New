@@ -208,21 +208,24 @@ class ECGFeatureExtractor:
         return im_b64
 
     def extract(self):
-        from utils.phase_defs import PHASE_SETS, PHASE_TITLES
+        from utils.phase_defs import PHASE_SETS, PHASE_TITLES, phase_names
 
-        n_phases = len(self.filtered_trigger)
+        n_markers = len(self.filtered_trigger)
         nni, rmssd = self.whole()
 
-        # 지원 모드(1/3/5/6)는 그 구성 그대로. 그 밖의 개수는 기존 동작과
-        # 동일하게 가장 가까운 아래 모드로 잘라 처리한다 (4 -> 3-phase, 7+ -> 5).
-        if n_phases in PHASE_SETS:
-            names = PHASE_SETS[n_phases]
-        elif n_phases >= 5:
-            names = PHASE_SETS[5]
-        elif n_phases >= 3:
-            names = PHASE_SETS[3]
-        else:
-            names = PHASE_SETS[1]
+        # phase 구성은 마커 개수로만 정한다. EEG·프론트와 같은 규칙
+        # (phase_defs.phase_names): 6 이면 6-phase, 그 밖에는 9-phase 순서의
+        # 앞 min(n, 9) 개. 2/4/7/8 은 중간에 끝난 세션으로 보고 앞에서부터 그
+        # 개수만큼의 phase 를 계산한다. 예전에는 가까운 아래 모드로 잘랐는데
+        # (4 -> 3-phase, 7+ -> 5) EEG 는 마커 개수만큼 나눠서, 한 세션 안에서
+        # HRV 와 EEG 의 구간 정의가 서로 달랐다.
+        names = phase_names(n_markers)
+        if n_markers > len(names):
+            ignored_min = ', '.join('%.1f' % (t / 7500)
+                                    for t in self.filtered_trigger[len(names):])
+            print(f'[ECG] 경고: 마커가 {n_markers}개입니다. 앞 {len(names)}개만 쓰고 '
+                  f'나머지 {n_markers - len(names)}개(첫 마커 기준 {ignored_min}분)는 '
+                  f'무시합니다. 마지막 phase({names[-1]})가 녹화 끝까지 갑니다.')
 
         # 서버 5-phase 계약 키는 항상 존재해야 한다 (없는 phase 는 빈 dict —
         # 구버전 서버가 .get() 없이 읽는 키가 있어 비워서라도 보낸다).
@@ -232,9 +235,11 @@ class ECGFeatureExtractor:
 
         for i, key in enumerate(names):
             title = PHASE_TITLES[key]
-            # 구버전 recovery2() 는 이후 트리거가 더 있어도 무조건 녹화 끝까지
-            # 잘랐다(스퓨리어스 트리거 방어). 그 의미를 유지한다.
-            hrv, psd = self._phase_hrv(i, title, to_end=(key == 'recovery2'))
+            # 그 세션의 마지막 phase 는 뒤에 마커가 더 있어도 녹화 끝까지 간다.
+            # 구버전 recovery2() 의 스퓨리어스 트리거 방어를 일반화한 것이다:
+            # 5-phase 의 recovery2 는 여전히 마지막이라 결과가 같고, 9-phase 의
+            # recovery2 는 중간 구간이라 다음 마커에서 끝난다.
+            hrv, psd = self._phase_hrv(i, title, to_end=(i == len(names) - 1))
             hrv.update({
                 'psd': psd,
                 'heart_rate': self.get_image_encoder(
@@ -244,8 +249,10 @@ class ECGFeatureExtractor:
             })
             sample[key] = hrv
 
+        # 분 단위 목록도 실제로 쓴 마커만 돌려준다. EEG 가 이 목록의 길이로
+        # phase 를 세므로, 무시한 마커까지 돌려주면 HRV 와 구간이 어긋난다.
         self.filtered_trigger //= 7500
-        return sample, self.filtered_trigger.tolist()
+        return sample, self.filtered_trigger[:len(names)].tolist()
 
     def _phase_hrv(self, i, title, to_end=False):
         """i번째 phase 구간의 HRV. 구간 = [trigger[i], trigger[i+1] 또는 끝).
@@ -253,7 +260,8 @@ class ECGFeatureExtractor:
         예전의 baseline()~recovery2() 메서드 다섯 개를 일반화한 것이다.
         cleaned CSV 는 첫 트리거가 0행에 오도록 잘려 있어(clean_up.py)
         trigger[0] == 0 이므로 baseline 도 같은 식으로 계산된다.
-        to_end 면 이후 트리거를 무시하고 녹화 끝까지 자른다 (구버전 recovery2).
+        to_end 면 이후 트리거를 무시하고 녹화 끝까지 자른다 (그 세션의 마지막
+        phase — 마커가 9개를 넘어 뒤 마커를 버린 경우에도 끝까지 간다).
         """
         print(title.lower())
         start = self.filtered_trigger[i] if i > 0 else 0

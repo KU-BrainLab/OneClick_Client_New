@@ -3,6 +3,7 @@ import mne
 import numpy as np
 import matplotlib.pyplot as plt
 from utils.eeg.eeg_analysis.mpl_compat import get_cmap
+from utils.phase_defs import PHASE_SUPERSET_SPACED
 from scipy.signal import hilbert
 import os
 import networkx as nx
@@ -22,10 +23,11 @@ FREQS_BANDS = {
     'Gamma': (30,  45),
 }
 
-# 5-phase 와 6-phase 키의 합집합. 존재하지 않는 stage 는 epoch 마스크가
-# 비어 자동으로 건너뛰므로 합집합으로 두어도 안전하다.
-STAGES = ['baseline', 'stimulation 1', 'recovery 1', 'stimulation 2', 'recovery 2',
-          'stimulation 3', 'stimulation 4', 'recovery']
+# 모든 모드(1/3/5/6/9-phase) 키의 합집합, 공백 표기. 존재하지 않는 stage 는
+# epoch 마스크가 비어 자동으로 건너뛰므로 합집합으로 두어도 안전하다.
+# 손으로 적어 두지 않고 phase_defs 에서 가져온다: 여기서 빠진 phase 는 예외
+# 없이 계산에서 제외되어 그 phase 가 낀 diff 그림이 전부 'No data' 가 된다.
+STAGES = list(PHASE_SUPERSET_SPACED)
 
 BANDS = list(FREQS_BANDS.keys())
 

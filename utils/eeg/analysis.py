@@ -67,6 +67,17 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
     if len(trigger) == 1:
         trigger.insert(0, 0)
 
+    # 입구 방어: phase 는 최대 MAX_PHASES(9)개다. 더 많이 들어오면 앞 9개
+    # phase 만 분석하고 마지막 phase 가 녹화 끝까지 가게 한다 (ECG extract() 와
+    # 같은 규칙). main.py/gui.py 는 이미 잘라서 넘기므로 main_analysis 를 직접
+    # 부른 경우의 방어다 — 그대로 두면 phase 이름이 9개뿐이라 모듈들이 죽는다.
+    from utils.phase_defs import MAX_PHASES as _MAX_PHASES
+    if len(trigger) - 1 > _MAX_PHASES:
+        print(f'[EEG] 경고: phase 가 {len(trigger) - 1}개 들어왔습니다. 앞 {_MAX_PHASES}개만 '
+              f'분석하고 뒤 마커 {trigger[_MAX_PHASES:-1]}(분)는 무시합니다. '
+              f'마지막 phase 가 녹화 끝({trigger[-1]}분)까지 갑니다.')
+        del trigger[_MAX_PHASES:-1]
+
 
     brain_topograhpy = get_psd_topography(epoch_data, myuuid, trigger)
     brain_conn_coh = get_brain_connectivity(epoch_data, myuuid, 'wpli', trigger)
@@ -96,7 +107,8 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
     brain_sleep = {key: brain_sleep_stage[key] for key in ['sleep_stage', 'sleep_stage_prob']}
     brain_report_summary = brain_sleep_stage['sleep_summary']
 
-    # diff1~4 조립: 서버 eeg_diff_obj_save 구조에 맞게 매핑
+    # diff 조립: 서버 eeg_diff_obj_save 구조에 맞게 매핑.
+    # 슬롯은 DIFF_KEYS(diff1~diff8) 개수만큼 만들고, 쌍이 없는 슬롯은 빈 dict.
     from utils.phase_defs import DIFF_KEYS as _DIFF_KEYS, diff_pairs as _diff_pairs
     _BANDS_LOWER = {
         'Delta': 'delta', 'Theta': 'theta', 'Alpha': 'alpha',
@@ -127,7 +139,8 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
                 d[f'topography_{band_lower}_{ss_key}']   = brain_delta_power_topo.get(f'topography_{pair_fn}_{band}_{ss}', topo_all)
                 d[f'connectivity_{band_lower}_{ss_key}'] = brain_delta_connectivity.get(f'connectivity_{pair_fn}_{band}_{ss}', conn_all)
         diffs.append(d)
-    diff1, diff2, diff3, diff4, diff5 = diffs
+    # 개수를 고정해 풀지 않는다 — MAX_DIFFS 가 바뀌면 여기서 모든 모드가 죽는다.
+    diff_results = dict(zip(_DIFF_KEYS, diffs))
 
     # ══════════════════════════════════════════════════════════════
     #  최종 요약 출력
@@ -138,8 +151,16 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
         phases     = list(band_ratios.keys())
         band_names = list(next(iter(band_ratios.values())).keys())
         col_w = 13
+        col_labels = phases
+        # phase 가 7개 이상(7·8·9-phase)이면 13자 열로는 한 줄이 118~144자라
+        # 120자 콘솔에서 줄이 접혀 표가 깨진다. 짧은 표기(Stim1/Rec1)와 9자
+        # 열로 줄인다(9-phase 가 104자). 6개 이하는 기존 출력 그대로.
+        if len(phases) > 6:
+            from utils.phase_defs import PHASE_SHORT as _PHASE_SHORT
+            col_w = 9
+            col_labels = [_PHASE_SHORT.get(p, p) for p in phases]
         # 평균 낼 phase — 실제로 존재하는 것만.
-        # 6-phase 는 키가 정식 표기(stimulation1~4)라 레거시 3종이 안 잡힌다.
+        # 6-phase 이상은 키가 정식 표기(stimulation1~4)라 레거시 3종이 안 잡힌다.
         # 그때는 전 구간 평균으로 바꾸고 라벨도 avg(all) 로 정직하게 붙인다.
         avg_keys = [p for p in avg_phases if p in band_ratios]
         avg_label = 'avg(B/S/R)'
@@ -151,7 +172,7 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
         print('\n' + '=' * (12 + total_w))
         print('  PSD Band Power Ratio  (채널 평균 상대 파워, 0~1)')
         print('=' * (12 + total_w))
-        header = f"  {'Band':<10}" + ''.join(f'{p:>{col_w}}' for p in phases)
+        header = f"  {'Band':<10}" + ''.join(f'{p:>{col_w}}' for p in col_labels)
         if avg_keys:
             header += f"  {avg_label:>{col_w}}"
         print(header)
@@ -177,11 +198,7 @@ def main_analysis(path, trigger, sleep_model=DEFAULT_SLEEP_MODEL):
         'topography_diff': brain_psd_diff,
         'connectivity_diff': brain_conn_diff_coh,
         'connectivity2_diff': brain_conn_diff_plv,
-        'diff1': diff1,
-        'diff2': diff2,
-        'diff3': diff3,
-        'diff4': diff4,
-        'diff5': diff5,
+        **diff_results,   # 'diff1' ~ 'diff8' (DIFF_KEYS)
         'psd_spectrogram': brain_spectrogram,
         'faa' : brain_faa,
         'spindle_coupling': brain_spindle_coupling,

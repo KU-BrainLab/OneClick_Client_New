@@ -157,6 +157,12 @@ def analyze_eeg_with_crop(data_path, file, trigger, crop=True,
             spans, cropped_trigger = auto_crop_csv(src_path, temp_path, amp_threshold=200.0)
             eeg_path = temp_path
 
+            # ECG(extract)는 phase_names 규칙대로 마커를 잘라서 돌려준다 — 10개
+            # 이상이면 앞 9개만. 크롭본에서 다시 센 목록도 같은 규칙으로 잘라야
+            # 개수가 맞는다(안 자르면 아래 비교에서 걸려 원본으로 폴백한다).
+            from utils.phase_defs import phase_names
+            cropped_trigger = cropped_trigger[:len(phase_names(len(cropped_trigger)))]
+
             if not trigger:
                 # ECG 실패로 phase 마커가 없는 경우. main_analysis 의 1-phase fallback 을
                 # 그대로 타도록 빈 리스트를 유지한다.
@@ -258,7 +264,7 @@ if __name__ == '__main__':
         'psd': eeg_results['psd_result'],
         'sleep_staging': eeg_results['sleep_stage'],
         'frontal_limbic': eeg_results['frontal_limbic'],
-        # phase·diff 키는 모드(1/3/5/6-phase)에 따라 다르다. 어떤 phase 가
+        # phase·diff 키는 모드(1/3/5/6/9-phase)에 따라 다르다. 어떤 phase 가
         # 실제로 분석됐는지는 eeg_results['topography'] 의 키가 그대로 말해준다.
         **{name: eeg_content_bulk(eeg_results, name)
            for name in eeg_results['topography'].keys()},

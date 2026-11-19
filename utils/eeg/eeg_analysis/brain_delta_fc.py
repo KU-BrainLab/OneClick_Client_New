@@ -3,6 +3,7 @@ import mne_connectivity
 import matplotlib
 import matplotlib.pyplot as plt
 from utils.eeg.eeg_analysis.mpl_compat import get_cmap
+from utils.phase_defs import PHASE_SUPERSET_SPACED
 from collections import defaultdict
 import numpy as np
 import pandas as pd
@@ -15,9 +16,9 @@ import base64
 COMPUTE_AEC   = True
 SPECTRAL_FCS  = []
 METHODS    = SPECTRAL_FCS + (['AEC'] if COMPUTE_AEC else [])
-# 5-phase 와 6-phase 키의 합집합 (brain_delta_power_topo.STAGES 와 같은 이유).
-STAGES = ['baseline', 'stimulation 1', 'recovery 1', 'stimulation 2', 'recovery 2',
-          'stimulation 3', 'stimulation 4', 'recovery']
+# 모든 모드 키의 합집합, 공백 표기 (brain_delta_power_topo.STAGES 와 같은 이유로
+# phase_defs 에서 가져온다 — 손으로 적으면 새 phase 가 빠져 'No data' 가 된다).
+STAGES = list(PHASE_SUPERSET_SPACED)
 SLEEP_STAGES = ['W', 'N1', 'N2', 'N3', 'REM']
 SLEEP_STAGE_NAMES = {0: 'W', 1: 'N1', 2: 'N2', 3: 'N3', 4: 'REM'}
 FC_EPOCH_LEN  = 10.0
